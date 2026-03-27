@@ -894,6 +894,58 @@ def get_user(phone: str):
     })
 
 
+@app.post("/api/mission/submit")
+def submit_mission():
+    """Recebe entrega de missão pela interface web e processa via Léa."""
+    data = request.get_json(silent=True) or {}
+    raw_phone   = data.get("phone", "")
+    response_text = data.get("response", "").strip()
+
+    if not raw_phone or not response_text:
+        return jsonify({"error": "phone e response são obrigatórios"}), 400
+
+    phone = resolve_phone(raw_phone)
+    state = get_user_state(phone)
+
+    if not state.get("nome"):
+        return jsonify({"error": "Usuário não encontrado. Conclua o onboarding no WhatsApp."}), 404
+
+    mission = get_current_mission(state)
+    if not mission:
+        return jsonify({"error": "Nenhuma missão ativa no momento."}), 400
+
+    xp_antes = state["xp_total"]
+
+    # Marca como aguardando resposta para o flow funcionar
+    state["aguardando_resposta"] = True
+
+    # Processa feedback via Claude, concede XP, avança missão
+    replies = flow_mission_feedback(state, response_text)
+    save_user_state(phone, state)
+
+    # Envia feedback pelo WhatsApp
+    for reply in replies:
+        send_whatsapp_message(phone, reply)
+
+    xp_ganho = state["xp_total"] - xp_antes
+    next_mission = get_current_mission(state)
+    fase = PHASES.get(state["fase_atual"], {})
+
+    logger.info(f"Missão entregue via interface por {phone}: +{xp_ganho} XP")
+
+    return jsonify({
+        "success": True,
+        "xp_ganho": xp_ganho,
+        "xp_total": state["xp_total"],
+        "fase_atual": state["fase_atual"],
+        "missao_index": state.get("missao_index", 0),
+        "nome_fase": fase.get("nome"),
+        "proxima_missao": next_mission["titulo"] if next_mission else None,
+        "jornada_concluida": next_mission is None and state["fase_atual"] > 5,
+        "badges_novos": [],  # badges já são enviados via WA
+    })
+
+
 @app.get("/api/ranking")
 def get_ranking():
     """Retorna ranking de todos os usuários."""

@@ -1331,10 +1331,35 @@ const PhaseScreen = ({ phase, setScreen, setMission }) => (
 
 // ── MISSION SCREEN ───────────────────────────────────────────────
 
-const MissionScreen = ({ mission, setScreen }) => {
+const MissionScreen = ({ mission, setScreen, onMissionComplete }) => {
   const [step, setStep] = useState(0);
   const [text, setText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [result, setResult] = useState(null);
   const ready = text.length > 40;
+
+  const handleSubmit = async () => {
+    if (!ready || loading) return;
+    setLoading(true);
+    setSubmitError('');
+    const phone = localStorage.getItem('native_phone');
+    try {
+      const res = await fetch(`${API_BASE}/api/mission/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, response: text, mission_id: mission.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao entregar missão.');
+      setResult(data);
+      if (onMissionComplete) onMissionComplete(data);
+      setStep(2);
+    } catch (e) {
+      setSubmitError(e.message);
+    }
+    setLoading(false);
+  };
 
   if (step === 2) return (
     <div style={{
@@ -1345,19 +1370,26 @@ const MissionScreen = ({ mission, setScreen }) => {
         <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
         <h2 style={{ fontSize: 28, fontWeight: 900, color: COLORS.dark, marginBottom: 8 }}>Missão concluída!</h2>
         <p style={{ fontSize: 15, color: COLORS.muted, marginBottom: 24 }}>
-          Você ganhou <strong style={{ color: COLORS.blue }}>+{mission.xp} XP</strong>
+          Você ganhou <strong style={{ color: COLORS.blue }}>+{result ? result.xp_ganho : mission.xp} XP</strong>
+          {result && <span style={{ fontSize: 13, color: COLORS.muted }}> · Total: {result.xp_total} XP</span>}
         </p>
         <div style={{ background: 'white', border: `2px solid ${COLORS.mint}`, borderRadius: 16, padding: 20, textAlign: 'left', marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.dark, marginBottom: 6 }}>Resposta salva no portfólio</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.dark, marginBottom: 6 }}>Sua resposta</div>
           <div style={{ fontSize: 13, color: COLORS.muted, lineHeight: 1.6 }}>{text.length > 150 ? text.slice(0, 150) + '…' : text}</div>
         </div>
-        <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: '14px 18px', textAlign: 'left', marginBottom: 24, display: 'flex', gap: 12 }}>
+        <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: '14px 18px', textAlign: 'left', marginBottom: 16, display: 'flex', gap: 12 }}>
           <Icons.WA />
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#15803D' }}>Feedback pelo WhatsApp</div>
-            <div style={{ fontSize: 12, color: '#16A34A', marginTop: 2 }}>O agente vai revisar e te responder em breve.</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#15803D' }}>Feedback da Léa chegando no WhatsApp</div>
+            <div style={{ fontSize: 12, color: '#16A34A', marginTop: 2 }}>A Léa já analisou sua resposta e vai te mandar o feedback agora.</div>
           </div>
         </div>
+        {result && result.proxima_missao && (
+          <div style={{ background: 'rgba(55,56,253,0.05)', border: '1.5px solid rgba(55,56,253,0.15)', borderRadius: 12, padding: '14px 18px', textAlign: 'left', marginBottom: 24 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.blue, marginBottom: 4 }}>🔓 Próxima missão desbloqueada</div>
+            <div style={{ fontSize: 13, color: COLORS.dark, fontWeight: 600 }}>{result.proxima_missao}</div>
+          </div>
+        )}
         <button onClick={() => setScreen('home')} className="btn btn-primary btn-lg btn-full">
           Voltar para o início
         </button>
@@ -1378,7 +1410,7 @@ const MissionScreen = ({ mission, setScreen }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
           <div className="pulse" style={{ width: 7, height: 7, borderRadius: '50%', background: COLORS.blue }} />
           <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: 1.5, textTransform: 'uppercase' }}>
-            Fase 1 · Despertar
+            {(() => { const p = phases.find(ph => ph.missions.some(m => m.id === mission.id)); return p ? `Fase ${p.id} · ${p.name}` : 'Fase atual'; })()}
           </span>
         </div>
         <h1 style={{ fontSize: 24, fontWeight: 900, color: 'white', marginBottom: 8 }}>{mission.name}</h1>
@@ -1465,15 +1497,21 @@ const MissionScreen = ({ mission, setScreen }) => {
                   Voltar
                 </button>
                 <button
-                  onClick={() => ready && setStep(2)}
-                  className={`btn ${ready ? 'btn-primary' : 'btn-disabled'} btn-lg`}
+                  onClick={handleSubmit}
+                  disabled={!ready || loading}
+                  className={`btn ${ready && !loading ? 'btn-primary' : 'btn-disabled'} btn-lg`}
                   style={{ flex: 1 }}>
-                  Entregar missão
+                  {loading ? '⏳ Enviando para a Léa...' : 'Entregar missão'}
                 </button>
               </div>
               {!ready && text.length > 0 && (
                 <p style={{ fontSize: 12, color: COLORS.muted, textAlign: 'center', marginTop: 8 }}>
                   Desenvolve um pouco mais antes de entregar
+                </p>
+              )}
+              {submitError && (
+                <p style={{ fontSize: 12, color: COLORS.coral, textAlign: 'center', marginTop: 8, fontWeight: 600 }}>
+                  {submitError}
                 </p>
               )}
             </div>
@@ -1866,7 +1904,7 @@ const App = () => {
     home: <HomeScreen setScreen={handleSetScreen} setPhase={setPhase} setMission={setMission} />,
     journey: <JourneyScreen setScreen={handleSetScreen} setPhase={setPhase} />,
     phase: phase ? <PhaseScreen phase={phase} setScreen={handleSetScreen} setMission={setMission} /> : null,
-    mission: mission ? <MissionScreen mission={mission} setScreen={handleSetScreen} /> : null,
+    mission: mission ? <MissionScreen mission={mission} setScreen={handleSetScreen} onMissionComplete={(d) => { fetchAndRefresh(localStorage.getItem('native_phone')); }} /> : null,
     ranking: <RankingScreen />,
     profile: <ProfileScreen />,
   };
