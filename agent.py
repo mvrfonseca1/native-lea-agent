@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-WHATSAPP_TOKEN   = os.environ.get("WHATSAPP_TOKEN", "")
+KAPSO_API_KEY    = os.environ.get("KAPSO_API_KEY", "")
 VERIFY_TOKEN     = os.environ.get("WHATSAPP_VERIFY_TOKEN", "native_leapy_verify")
-WHATSAPP_API_URL = "https://graph.facebook.com/v18.0"
+KAPSO_API_URL    = "https://api.kapso.ai/meta/whatsapp/v24.0"
 PHONE_NUMBER_ID  = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
 
 # ─── System Prompt ────────────────────────────────────────────────────────────
@@ -500,12 +500,12 @@ def route_message(state: dict, message: str) -> list[str]:
 # ─── Envio de Mensagens WhatsApp ──────────────────────────────────────────────
 
 def send_whatsapp_message(to: str, text: str):
-    """Envia mensagem de texto via WhatsApp Business API."""
+    """Envia mensagem de texto via Kapso API."""
     import requests
 
-    url = f"{WHATSAPP_API_URL}/{PHONE_NUMBER_ID}/messages"
+    url = f"{KAPSO_API_URL}/{PHONE_NUMBER_ID}/messages"
     headers = {
-        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+        "X-API-Key": KAPSO_API_KEY,
         "Content-Type": "application/json",
     }
     payload = {
@@ -544,9 +544,9 @@ def receive_webhook():
     """Recebe mensagens do WhatsApp."""
     # Verifica assinatura (segurança)
     signature = request.headers.get("X-Hub-Signature-256", "")
-    if WHATSAPP_TOKEN and signature:
+    if KAPSO_API_KEY and signature:
         expected = "sha256=" + hmac.new(
-            WHATSAPP_TOKEN.encode(), request.data, hashlib.sha256
+            KAPSO_API_KEY.encode(), request.data, hashlib.sha256
         ).hexdigest()
         if not hmac.compare_digest(signature, expected):
             return "Unauthorized", 401
