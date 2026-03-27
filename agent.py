@@ -14,6 +14,7 @@ import hmac
 from datetime import datetime, timedelta
 from typing import Optional
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import anthropic
 
 # ─── Config ───────────────────────────────────────────────────────────────────
@@ -22,6 +23,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+CORS(app)
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 KAPSO_API_KEY    = os.environ.get("KAPSO_API_KEY", "").strip()
