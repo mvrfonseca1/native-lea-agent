@@ -11,10 +11,13 @@ import json
 import logging
 import hashlib
 import hmac
+import sqlite3
+import threading
 from datetime import datetime, timedelta
 from typing import Optional
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from apscheduler.schedulers.background import BackgroundScheduler
 import anthropic
 
 # ─── Config ───────────────────────────────────────────────────────────────────
@@ -30,6 +33,8 @@ KAPSO_API_KEY    = os.environ.get("KAPSO_API_KEY", "").strip()
 VERIFY_TOKEN     = os.environ.get("WHATSAPP_VERIFY_TOKEN", "native_leapy_verify")
 KAPSO_API_URL    = "https://api.kapso.ai/meta/whatsapp/v24.0"
 PHONE_NUMBER_ID  = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
+DB_PATH          = os.environ.get("DB_PATH", "/data/native.db")
+db_lock          = threading.Lock()
 
 # ─── System Prompt ────────────────────────────────────────────────────────────
 
@@ -157,31 +162,69 @@ MISSION_PROMPTS = {
     "aplicacao":   "Aplique no seu trabalho real e me conta.",
 }
 
-# ─── Estado dos Usuários (em produção: use Redis ou banco de dados) ───────────
+# ─── Persistência SQLite ──────────────────────────────────────────────────────
 
-user_states: dict[str, dict] = {}
+def init_db():
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_states (
+                phone TEXT PRIMARY KEY,
+                state_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+    logger.info(f"Banco de dados iniciado em {DB_PATH}")
 
 def get_user_state(phone: str) -> dict:
-    if phone not in user_states:
-        user_states[phone] = {
-            "phone": phone,
-            "nome": None,
-            "fase_atual": 1,
-            "missao_index": 0,
-            "xp_total": 0,
-            "streak": 0,
-            "ultima_atividade": None,
-            "onboarding_step": 0,      # 0 = não iniciou, 1 = aguardando nome, 2 = concluído
-            "missao_em_andamento": False,
-            "aguardando_resposta": False,
-            "history": [],             # Histórico de mensagens para o Claude
-            "badges": [],
-            "missoes_completas": [],
-        }
-    return user_states[phone]
+    with db_lock:
+        try:
+            with sqlite3.connect(DB_PATH) as conn:
+                row = conn.execute("SELECT state_json FROM user_states WHERE phone=?", (phone,)).fetchone()
+                if row:
+                    return json.loads(row[0])
+        except Exception as e:
+            logger.error(f"Erro ao ler estado de {phone}: {e}")
+    return {
+        "phone": phone,
+        "nome": None,
+        "fase_atual": 1,
+        "missao_index": 0,
+        "xp_total": 0,
+        "streak": 0,
+        "ultima_atividade": None,
+        "onboarding_step": 0,
+        "missao_em_andamento": False,
+        "aguardando_resposta": False,
+        "history": [],
+        "badges": [],
+        "missoes_completas": [],
+        "last_engagement_sent": None,
+    }
 
 def save_user_state(phone: str, state: dict):
-    user_states[phone] = state
+    with db_lock:
+        try:
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute("""
+                    INSERT INTO user_states (phone, state_json, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(phone) DO UPDATE SET state_json=excluded.state_json, updated_at=excluded.updated_at
+                """, (phone, json.dumps(state, ensure_ascii=False), datetime.now().isoformat()))
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Erro ao salvar estado de {phone}: {e}")
+
+def get_all_users() -> list[dict]:
+    with db_lock:
+        try:
+            with sqlite3.connect(DB_PATH) as conn:
+                rows = conn.execute("SELECT state_json FROM user_states").fetchall()
+                return [json.loads(r[0]) for r in rows]
+        except Exception as e:
+            logger.error(f"Erro ao listar usuários: {e}")
+            return []
 
 def get_current_mission(state: dict) -> Optional[dict]:
     fase = PHASES.get(state["fase_atual"])
@@ -604,6 +647,91 @@ def receive_webhook():
     return "OK", 200
 
 
+# ─── Régua de Engajamento ─────────────────────────────────────────────────────
+
+ENGAGEMENT_MESSAGES = {
+    "24h": [
+        "Oi, {nome}! 👋 Saudade de você por aqui.",
+        "Sua próxima missão te espera: *{missao}*. Quando você tiver 15 minutos, manda *'missão'* aqui! 💪",
+    ],
+    "48h": [
+        "Ei, {nome}! Já faz 2 dias sem se ver. 😊",
+        "Sabia que consistência é o maior diferencial de quem vira AI Native? Sua missão *{missao}* ainda tá disponível — manda *'missão'* quando quiser continuar. 🚀",
+    ],
+    "7d": [
+        "{nome}, não desiste não! 🙏",
+        "Você chegou até aqui — fase *{fase}*, {xp} XP acumulados. Isso é real e não some. Manda *'oi'* quando estiver pronta pra voltar. Estarei aqui! ✨",
+    ],
+    "morning": [
+        "Bom dia, {nome}! ☀️ Mais um dia pra evoluir.",
+        "Missão do dia: *{missao}*. Manda *'missão'* pra começar! 💡",
+    ],
+}
+
+def send_engagement_message(phone: str, template_key: str, state: dict):
+    mission = get_current_mission(state)
+    fase = PHASES.get(state.get("fase_atual", 1), {})
+    ctx = {
+        "nome": state.get("nome", ""),
+        "missao": mission["titulo"] if mission else "jornada concluída",
+        "fase": fase.get("nome", ""),
+        "xp": state.get("xp_total", 0),
+    }
+    msgs = ENGAGEMENT_MESSAGES.get(template_key, [])
+    for msg in msgs:
+        send_whatsapp_message(phone, msg.format(**ctx))
+
+def run_engagement_check():
+    """Verifica usuários inativos e envia mensagens proativas."""
+    logger.info("Rodando verificação de engajamento...")
+    now = datetime.now()
+    hour = now.hour
+
+    for state in get_all_users():
+        phone = state.get("phone")
+        nome = state.get("nome")
+        ultima = state.get("ultima_atividade")
+
+        if not phone or not nome or not ultima:
+            continue
+
+        try:
+            last_active = datetime.fromisoformat(ultima)
+        except Exception:
+            continue
+
+        hours_inactive = (now - last_active).total_seconds() / 3600
+        last_sent = state.get("last_engagement_sent")
+        last_sent_dt = datetime.fromisoformat(last_sent) if last_sent else None
+
+        # Não mandar mais de 1 mensagem de engajamento por dia
+        if last_sent_dt and (now - last_sent_dt).total_seconds() < 20 * 3600:
+            continue
+
+        template = None
+
+        # Mensagem matinal (9h) para usuários com missão ativa
+        if hour == 9 and get_current_mission(state) and hours_inactive >= 12:
+            template = "morning"
+        # 24h inativo
+        elif 24 <= hours_inactive < 48:
+            template = "24h"
+        # 48h inativo
+        elif 48 <= hours_inactive < 168:
+            template = "48h"
+        # 7 dias inativo
+        elif hours_inactive >= 168:
+            template = "7d"
+
+        if template:
+            try:
+                send_engagement_message(phone, template, state)
+                state["last_engagement_sent"] = now.isoformat()
+                save_user_state(phone, state)
+                logger.info(f"Engajamento '{template}' enviado para {phone}")
+            except Exception as e:
+                logger.error(f"Erro ao enviar engajamento para {phone}: {e}")
+
 # ─── Endpoints de Admin (para o webapp Native) ────────────────────────────────
 
 @app.get("/api/user/<phone>")
@@ -629,21 +757,21 @@ def get_user(phone: str):
 @app.get("/api/ranking")
 def get_ranking():
     """Retorna ranking de todos os usuários."""
+    all_users = get_all_users()
     ranking = [
         {
-            "phone": phone,
-            "nome": state.get("nome", "Anônimo"),
-            "xp_total": state["xp_total"],
-            "fase": state["fase_atual"],
-            "streak": state.get("streak", 0),
-            "missoes": len(state.get("missoes_completas", [])),
+            "phone": s.get("phone"),
+            "nome": s.get("nome", "Anônimo"),
+            "xp_total": s.get("xp_total", 0),
+            "fase": s.get("fase_atual", 1),
+            "streak": s.get("streak", 0),
+            "missoes": len(s.get("missoes_completas", [])),
         }
-        for phone, state in user_states.items()
-        if state.get("nome")
+        for s in all_users if s.get("nome")
     ]
     ranking.sort(key=lambda x: x["xp_total"], reverse=True)
-    for i, user in enumerate(ranking):
-        user["posicao"] = i + 1
+    for i, u in enumerate(ranking):
+        u["posicao"] = i + 1
     return jsonify(ranking)
 
 
@@ -657,7 +785,7 @@ def index():
 
 @app.get("/health")
 def health():
-    return jsonify({"status": "ok", "users": len(user_states)})
+    return jsonify({"status": "ok", "users": len(get_all_users())})
 
 
 # ─── Simulador local (testes sem WhatsApp) ────────────────────────────────────
@@ -693,12 +821,26 @@ def simulate(phone: str = "5511999999999"):
 
 # ─── Entry Point ──────────────────────────────────────────────────────────────
 
+def start_scheduler():
+    scheduler = BackgroundScheduler(timezone="America/Sao_Paulo")
+    scheduler.add_job(run_engagement_check, "cron", hour="*", minute=0)
+    scheduler.start()
+    logger.info("Scheduler de engajamento iniciado (verifica a cada hora).")
+    return scheduler
+
 if __name__ == "__main__":
     import sys
 
     if len(sys.argv) > 1 and sys.argv[1] == "simulate":
+        init_db()
         simulate()
     else:
+        init_db()
+        start_scheduler()
         port = int(os.environ.get("PORT", 8080))
         logger.info(f"Léa Agent iniciando na porta {port}...")
         app.run(host="0.0.0.0", port=port, debug=False)
+else:
+    # Quando carregado pelo gunicorn/wsgi
+    init_db()
+    start_scheduler()
