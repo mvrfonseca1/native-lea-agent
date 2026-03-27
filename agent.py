@@ -33,8 +33,12 @@ KAPSO_API_KEY    = os.environ.get("KAPSO_API_KEY", "").strip()
 VERIFY_TOKEN     = os.environ.get("WHATSAPP_VERIFY_TOKEN", "native_leapy_verify")
 KAPSO_API_URL    = "https://api.kapso.ai/meta/whatsapp/v24.0"
 PHONE_NUMBER_ID  = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
-DB_PATH          = os.environ.get("DB_PATH", "/data/native.db")
+DB_PATH          = os.environ.get("DB_PATH", "/tmp/native.db")
+DATABASE_URL     = os.environ.get("DATABASE_URL", "")  # PostgreSQL URL if available
 db_lock          = threading.Lock()
+
+# Use PostgreSQL if DATABASE_URL is set, otherwise SQLite
+USE_POSTGRES = bool(DATABASE_URL)
 
 # ─── System Prompt ────────────────────────────────────────────────────────────
 
@@ -162,30 +166,53 @@ MISSION_PROMPTS = {
     "aplicacao":   "Aplique no seu trabalho real e me conta.",
 }
 
-# ─── Persistência SQLite ──────────────────────────────────────────────────────
+# ─── Persistência (PostgreSQL ou SQLite) ─────────────────────────────────────
+
+CREATE_TABLE_SQL = """
+    CREATE TABLE IF NOT EXISTS user_states (
+        phone TEXT PRIMARY KEY,
+        state_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+"""
+
+UPSERT_SQL_SQLITE = """
+    INSERT INTO user_states (phone, state_json, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(phone) DO UPDATE SET state_json=excluded.state_json, updated_at=excluded.updated_at
+"""
+
+UPSERT_SQL_PG = """
+    INSERT INTO user_states (phone, state_json, updated_at)
+    VALUES (%s, %s, %s)
+    ON CONFLICT (phone) DO UPDATE SET state_json=EXCLUDED.state_json, updated_at=EXCLUDED.updated_at
+"""
+
+def _pg_conn():
+    import psycopg2
+    return psycopg2.connect(DATABASE_URL)
 
 def init_db():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS user_states (
-                phone TEXT PRIMARY KEY,
-                state_json TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-        """)
-        conn.commit()
-    logger.info(f"Banco de dados iniciado em {DB_PATH}")
-
-def get_user_state(phone: str) -> dict:
-    with db_lock:
+    if USE_POSTGRES:
         try:
-            with sqlite3.connect(DB_PATH) as conn:
-                row = conn.execute("SELECT state_json FROM user_states WHERE phone=?", (phone,)).fetchone()
-                if row:
-                    return json.loads(row[0])
+            conn = _pg_conn()
+            with conn.cursor() as cur:
+                cur.execute(CREATE_TABLE_SQL)
+            conn.commit()
+            conn.close()
+            logger.info("PostgreSQL iniciado.")
         except Exception as e:
-            logger.error(f"Erro ao ler estado de {phone}: {e}")
+            logger.error(f"Erro ao iniciar PostgreSQL: {e}")
+    else:
+        db_dir = os.path.dirname(DB_PATH)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(CREATE_TABLE_SQL)
+            conn.commit()
+        logger.info(f"SQLite iniciado em {DB_PATH}")
+
+def _empty_state(phone: str) -> dict:
     return {
         "phone": phone,
         "nome": None,
@@ -203,25 +230,55 @@ def get_user_state(phone: str) -> dict:
         "last_engagement_sent": None,
     }
 
+def get_user_state(phone: str) -> dict:
+    with db_lock:
+        try:
+            if USE_POSTGRES:
+                conn = _pg_conn()
+                with conn.cursor() as cur:
+                    cur.execute("SELECT state_json FROM user_states WHERE phone=%s", (phone,))
+                    row = cur.fetchone()
+                conn.close()
+            else:
+                with sqlite3.connect(DB_PATH) as conn:
+                    row = conn.execute("SELECT state_json FROM user_states WHERE phone=?", (phone,)).fetchone()
+            if row:
+                return json.loads(row[0])
+        except Exception as e:
+            logger.error(f"Erro ao ler estado de {phone}: {e}")
+    return _empty_state(phone)
+
 def save_user_state(phone: str, state: dict):
     with db_lock:
         try:
-            with sqlite3.connect(DB_PATH) as conn:
-                conn.execute("""
-                    INSERT INTO user_states (phone, state_json, updated_at)
-                    VALUES (?, ?, ?)
-                    ON CONFLICT(phone) DO UPDATE SET state_json=excluded.state_json, updated_at=excluded.updated_at
-                """, (phone, json.dumps(state, ensure_ascii=False), datetime.now().isoformat()))
+            now = datetime.now().isoformat()
+            state_json = json.dumps(state, ensure_ascii=False)
+            if USE_POSTGRES:
+                conn = _pg_conn()
+                with conn.cursor() as cur:
+                    cur.execute(UPSERT_SQL_PG, (phone, state_json, now))
                 conn.commit()
+                conn.close()
+            else:
+                with sqlite3.connect(DB_PATH) as conn:
+                    conn.execute(UPSERT_SQL_SQLITE, (phone, state_json, now))
+                    conn.commit()
         except Exception as e:
             logger.error(f"Erro ao salvar estado de {phone}: {e}")
 
 def get_all_users() -> list[dict]:
     with db_lock:
         try:
-            with sqlite3.connect(DB_PATH) as conn:
-                rows = conn.execute("SELECT state_json FROM user_states").fetchall()
-                return [json.loads(r[0]) for r in rows]
+            if USE_POSTGRES:
+                conn = _pg_conn()
+                with conn.cursor() as cur:
+                    cur.execute("SELECT state_json FROM user_states")
+                    rows = cur.fetchall()
+                conn.close()
+            else:
+                with sqlite3.connect(DB_PATH) as conn:
+                    rows = conn.execute("SELECT state_json FROM user_states").fetchall()
+            return [json.loads(r[0]) for r in rows]
         except Exception as e:
             logger.error(f"Erro ao listar usuários: {e}")
             return []
