@@ -734,10 +734,24 @@ def run_engagement_check():
 
 # ─── Endpoints de Admin (para o webapp Native) ────────────────────────────────
 
-@app.get("/api/user/<phone>")
+def resolve_phone(raw: str) -> str:
+    """Normaliza número para o formato armazenado no banco (só dígitos, com 55)."""
+    digits = ''.join(c for c in raw if c.isdigit())
+    if not digits.startswith('55'):
+        digits = '55' + digits
+    return digits
+
+@app.get("/api/user/<path:phone>")
 def get_user(phone: str):
     """Retorna estado do usuário (para o webapp)."""
-    state = get_user_state(phone)
+    normalized = resolve_phone(phone)
+    # Tenta o número normalizado; se não tiver nome, tenta sem prefixo 55
+    state = get_user_state(normalized)
+    if not state.get("nome"):
+        alt = normalized[2:] if normalized.startswith("55") else normalized
+        alt_state = get_user_state(alt)
+        if alt_state.get("nome"):
+            state = alt_state
     mission = get_current_mission(state)
     fase = PHASES.get(state["fase_atual"], {})
     return jsonify({
