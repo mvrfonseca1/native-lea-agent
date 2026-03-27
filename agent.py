@@ -541,33 +541,28 @@ def verify_webhook():
 
 @app.post("/webhook")
 def receive_webhook():
-    """Recebe mensagens do WhatsApp."""
-    # Verifica assinatura (segurança)
-    signature = request.headers.get("X-Hub-Signature-256", "")
-    if KAPSO_API_KEY and signature:
-        expected = "sha256=" + hmac.new(
-            KAPSO_API_KEY.encode(), request.data, hashlib.sha256
-        ).hexdigest()
-        if not hmac.compare_digest(signature, expected):
-            return "Unauthorized", 401
-
+    """Recebe mensagens do WhatsApp via Kapso v2 webhook."""
     data = request.get_json(silent=True)
     if not data:
         return "OK", 200
 
     try:
-        entry = data.get("entry", [{}])[0]
-        changes = entry.get("changes", [{}])[0]
-        value = changes.get("value", {})
-        messages = value.get("messages", [])
+        event = request.headers.get("X-Webhook-Event", "")
+        logger.info(f"Kapso event: {event} | payload: {str(data)[:200]}")
 
-        for msg in messages:
+        # Formato Kapso v2: whatsapp.message.received
+        if "message" in data and "conversation" in data:
+            msg  = data.get("message", {})
+            conv = data.get("conversation", {})
+
             if msg.get("type") != "text":
-                continue  # Só trata texto por enquanto
+                return "OK", 200  # Só trata texto por enquanto
 
-            phone   = msg["from"]
-            text    = msg["text"]["body"]
-            msg_id  = msg["id"]
+            phone = conv.get("phone_number", "").replace("+", "").replace("-", "").replace(" ", "")
+            text  = msg.get("text", {}).get("body", "")
+
+            if not phone or not text:
+                return "OK", 200
 
             logger.info(f"Mensagem de {phone}: {text[:80]}")
 
@@ -577,6 +572,29 @@ def receive_webhook():
 
             for reply in replies:
                 send_whatsapp_message(phone, reply)
+
+        # Fallback: formato Meta direto (entry/changes)
+        elif "entry" in data:
+            entry    = data.get("entry", [{}])[0]
+            changes  = entry.get("changes", [{}])[0]
+            value    = changes.get("value", {})
+            messages = value.get("messages", [])
+
+            for msg in messages:
+                if msg.get("type") != "text":
+                    continue
+
+                phone = msg["from"]
+                text  = msg["text"]["body"]
+
+                logger.info(f"Mensagem de {phone}: {text[:80]}")
+
+                state = get_user_state(phone)
+                replies = route_message(state, text)
+                save_user_state(phone, state)
+
+                for reply in replies:
+                    send_whatsapp_message(phone, reply)
 
     except Exception as e:
         logger.error(f"Erro no webhook: {e}", exc_info=True)
