@@ -1633,7 +1633,11 @@ const LoginScreen = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const normalizePhone = (p) => p.replace(/\D/g, '');
+  const normalizePhone = (p) => {
+    let n = p.replace(/\D/g, '');
+    if (!n.startsWith('55')) n = '55' + n;
+    return n;
+  };
 
   const handleLogin = async () => {
     const normalized = normalizePhone(phone);
