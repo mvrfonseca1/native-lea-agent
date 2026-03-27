@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-KAPSO_API_KEY    = os.environ.get("KAPSO_API_KEY", "")
+KAPSO_API_KEY    = os.environ.get("KAPSO_API_KEY", "").strip()
 VERIFY_TOKEN     = os.environ.get("WHATSAPP_VERIFY_TOKEN", "native_leapy_verify")
 KAPSO_API_URL    = "https://api.kapso.ai/meta/whatsapp/v24.0"
 PHONE_NUMBER_ID  = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
