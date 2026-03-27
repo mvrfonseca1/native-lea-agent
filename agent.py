@@ -176,6 +176,29 @@ CREATE_TABLE_SQL = """
     )
 """
 
+CREATE_MESSAGE_LOG_SQL = """
+    CREATE TABLE IF NOT EXISTS message_log (
+        id TEXT PRIMARY KEY,
+        phone TEXT NOT NULL,
+        direction TEXT NOT NULL,
+        content TEXT,
+        timestamp TEXT NOT NULL
+    )
+"""
+
+CREATE_ANNOUNCEMENTS_SQL = """
+    CREATE TABLE IF NOT EXISTS announcements (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        target TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        sent_count INTEGER DEFAULT 0
+    )
+"""
+
+ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "native-admin-2026")
+
 UPSERT_SQL_SQLITE = """
     INSERT INTO user_states (phone, state_json, updated_at)
     VALUES (?, ?, ?)
@@ -198,6 +221,8 @@ def init_db():
             conn = _pg_conn()
             with conn.cursor() as cur:
                 cur.execute(CREATE_TABLE_SQL)
+                cur.execute(CREATE_MESSAGE_LOG_SQL)
+                cur.execute(CREATE_ANNOUNCEMENTS_SQL)
             conn.commit()
             conn.close()
             logger.info("PostgreSQL iniciado.")
@@ -209,8 +234,47 @@ def init_db():
             os.makedirs(db_dir, exist_ok=True)
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute(CREATE_TABLE_SQL)
+            conn.execute(CREATE_MESSAGE_LOG_SQL)
+            conn.execute(CREATE_ANNOUNCEMENTS_SQL)
             conn.commit()
         logger.info(f"SQLite iniciado em {DB_PATH}")
+
+
+def log_message(phone: str, direction: str, content: str):
+    """Registra mensagem no message_log."""
+    msg_id = datetime.now().isoformat() + phone[-4:]
+    timestamp = datetime.now().isoformat()
+    try:
+        if USE_POSTGRES:
+            conn = _pg_conn()
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO message_log (id, phone, direction, content, timestamp) VALUES (%s, %s, %s, %s, %s)",
+                    (msg_id, phone, direction, content, timestamp)
+                )
+            conn.commit()
+            conn.close()
+        else:
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute(
+                    "INSERT INTO message_log (id, phone, direction, content, timestamp) VALUES (?, ?, ?, ?, ?)",
+                    (msg_id, phone, direction, content, timestamp)
+                )
+                conn.commit()
+    except Exception as e:
+        logger.error(f"Erro ao registrar mensagem: {e}")
+
+
+def require_admin(f):
+    """Decorator para proteger endpoints de admin."""
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get("X-Admin-Token")
+        if token != ADMIN_TOKEN:
+            return jsonify({"error": "Unauthorized"}), 401
+        return f(*args, **kwargs)
+    return decorated
 
 def _empty_state(phone: str) -> dict:
     return {
@@ -621,6 +685,7 @@ def send_whatsapp_message(to: str, text: str):
         resp = requests.post(url, headers=headers, json=payload, timeout=10)
         resp.raise_for_status()
         logger.info(f"Mensagem enviada para {to}: {text[:60]}...")
+        log_message(to, "outbound", text)
     except Exception as e:
         logger.error(f"Erro ao enviar para {to}: {e}")
 
@@ -667,6 +732,7 @@ def receive_webhook():
                 return "OK", 200
 
             logger.info(f"Mensagem de {phone}: {text[:80]}")
+            log_message(phone, "inbound", text)
 
             state = get_user_state(phone)
             replies = route_message(state, text)
@@ -690,6 +756,7 @@ def receive_webhook():
                 text  = msg["text"]["body"]
 
                 logger.info(f"Mensagem de {phone}: {text[:80]}")
+                log_message(phone, "inbound", text)
 
                 state = get_user_state(phone)
                 replies = route_message(state, text)
@@ -846,6 +913,266 @@ def get_ranking():
     for i, u in enumerate(ranking):
         u["posicao"] = i + 1
     return jsonify(ranking)
+
+
+# ─── Admin Endpoints ─────────────────────────────────────────────────────────
+
+@app.get("/admin")
+def serve_admin():
+    """Serve o painel de admin."""
+    html_path = os.path.join(os.path.dirname(__file__), "admin.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        return f.read(), 200, {"Content-Type": "text/html"}
+
+
+@app.get("/admin/stats")
+@require_admin
+def admin_stats():
+    """Retorna estatísticas gerais."""
+    today = datetime.now().date().isoformat()
+    week_ago = (datetime.now() - timedelta(days=7)).date().isoformat()
+
+    all_users = get_all_users()
+    total_users = len(all_users)
+    onboarded = sum(1 for u in all_users if u.get("nome"))
+    active_today = sum(1 for u in all_users if u.get("ultima_atividade", "") == today)
+    active_week = sum(1 for u in all_users if u.get("ultima_atividade", "") >= week_ago)
+    missions_completed = sum(len(u.get("missoes_completas", [])) for u in all_users)
+
+    users_by_phase = {}
+    for u in all_users:
+        fase = str(u.get("fase_atual", 1))
+        users_by_phase[fase] = users_by_phase.get(fase, 0) + 1
+
+    # Message counts from message_log
+    try:
+        if USE_POSTGRES:
+            conn = _pg_conn()
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM message_log WHERE direction='inbound'")
+                messages_inbound = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM message_log WHERE direction='outbound'")
+                messages_outbound = cur.fetchone()[0]
+            conn.close()
+        else:
+            with sqlite3.connect(DB_PATH) as conn:
+                messages_inbound = conn.execute("SELECT COUNT(*) FROM message_log WHERE direction='inbound'").fetchone()[0]
+                messages_outbound = conn.execute("SELECT COUNT(*) FROM message_log WHERE direction='outbound'").fetchone()[0]
+    except Exception:
+        messages_inbound = 0
+        messages_outbound = 0
+
+    # Messages by day (last 14 days)
+    messages_by_day = []
+    try:
+        for i in range(13, -1, -1):
+            day = (datetime.now() - timedelta(days=i)).date().isoformat()
+            if USE_POSTGRES:
+                conn = _pg_conn()
+                with conn.cursor() as cur:
+                    cur.execute("SELECT COUNT(*) FROM message_log WHERE direction='inbound' AND timestamp LIKE %s", (day + "%",))
+                    inb = cur.fetchone()[0]
+                    cur.execute("SELECT COUNT(*) FROM message_log WHERE direction='outbound' AND timestamp LIKE %s", (day + "%",))
+                    outb = cur.fetchone()[0]
+                conn.close()
+            else:
+                with sqlite3.connect(DB_PATH) as conn:
+                    inb = conn.execute("SELECT COUNT(*) FROM message_log WHERE direction='inbound' AND timestamp LIKE ?", (day + "%",)).fetchone()[0]
+                    outb = conn.execute("SELECT COUNT(*) FROM message_log WHERE direction='outbound' AND timestamp LIKE ?", (day + "%",)).fetchone()[0]
+            messages_by_day.append({"date": day, "inbound": inb, "outbound": outb})
+    except Exception as e:
+        logger.error(f"Erro ao buscar mensagens por dia: {e}")
+
+    return jsonify({
+        "total_users": total_users,
+        "onboarded": onboarded,
+        "active_today": active_today,
+        "active_week": active_week,
+        "messages_inbound": messages_inbound,
+        "messages_outbound": messages_outbound,
+        "missions_completed": missions_completed,
+        "users_by_phase": users_by_phase,
+        "messages_by_day": messages_by_day,
+    })
+
+
+@app.get("/admin/users")
+@require_admin
+def admin_list_users():
+    """Retorna lista de todos os usuários."""
+    all_users = get_all_users()
+    result = []
+    for u in all_users:
+        result.append({
+            "phone": u.get("phone"),
+            "nome": u.get("nome"),
+            "fase_atual": u.get("fase_atual", 1),
+            "missao_index": u.get("missao_index", 0),
+            "xp_total": u.get("xp_total", 0),
+            "streak": u.get("streak", 0),
+            "ultima_atividade": u.get("ultima_atividade"),
+            "missoes_completas": len(u.get("missoes_completas", [])),
+            "onboarding_step": u.get("onboarding_step", 0),
+            "badges": len(u.get("badges", [])),
+        })
+    return jsonify(result)
+
+
+@app.get("/admin/user/<path:phone>")
+@require_admin
+def admin_get_user(phone: str):
+    """Retorna estado completo de um usuário."""
+    state = get_user_state(phone)
+    return jsonify(state)
+
+
+@app.put("/admin/user/<path:phone>")
+@require_admin
+def admin_update_user(phone: str):
+    """Atualiza campos do estado de um usuário."""
+    data = request.get_json(silent=True) or {}
+    state = get_user_state(phone)
+    allowed = ["nome", "fase_atual", "missao_index", "xp_total", "streak", "onboarding_step"]
+    for field in allowed:
+        if field in data:
+            state[field] = data[field]
+    save_user_state(phone, state)
+    return jsonify({"ok": True})
+
+
+@app.delete("/admin/user/<path:phone>")
+@require_admin
+def admin_delete_user(phone: str):
+    """Remove um usuário."""
+    try:
+        if USE_POSTGRES:
+            conn = _pg_conn()
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM user_states WHERE phone=%s", (phone,))
+            conn.commit()
+            conn.close()
+        else:
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute("DELETE FROM user_states WHERE phone=?", (phone,))
+                conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/admin/user")
+@require_admin
+def admin_create_user():
+    """Cria um novo usuário."""
+    data = request.get_json(silent=True) or {}
+    phone = data.get("phone")
+    if not phone:
+        return jsonify({"error": "phone required"}), 400
+    state = _empty_state(phone)
+    state["nome"] = data.get("nome")
+    state["fase_atual"] = data.get("fase_atual", 1)
+    state["missao_index"] = data.get("missao_index", 0)
+    state["onboarding_step"] = 2
+    save_user_state(phone, state)
+    return jsonify({"ok": True}), 201
+
+
+@app.get("/admin/announcements")
+@require_admin
+def admin_list_announcements():
+    """Retorna todos os comunicados."""
+    try:
+        if USE_POSTGRES:
+            conn = _pg_conn()
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, title, content, target, created_at, sent_count FROM announcements ORDER BY created_at DESC")
+                rows = cur.fetchall()
+            conn.close()
+        else:
+            with sqlite3.connect(DB_PATH) as conn:
+                rows = conn.execute("SELECT id, title, content, target, created_at, sent_count FROM announcements ORDER BY created_at DESC").fetchall()
+        result = [
+            {"id": r[0], "title": r[1], "content": r[2], "target": r[3], "created_at": r[4], "sent_count": r[5]}
+            for r in rows
+        ]
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/admin/announcement")
+@require_admin
+def admin_create_announcement():
+    """Cria e envia um comunicado."""
+    import uuid
+    data = request.get_json(silent=True) or {}
+    title = data.get("title", "")
+    content = data.get("content", "")
+    target = data.get("target", "all")
+
+    if not title or not content:
+        return jsonify({"error": "title and content required"}), 400
+
+    ann_id = str(uuid.uuid4())
+    created_at = datetime.now().isoformat()
+    sent_count = 0
+
+    # Determine recipients
+    all_users = get_all_users()
+    if target == "all":
+        recipients = [u for u in all_users if u.get("nome")]
+    else:
+        # Specific phone
+        recipients = [u for u in all_users if u.get("phone") == target]
+
+    for u in recipients:
+        phone = u.get("phone")
+        if phone:
+            send_whatsapp_message(phone, content)
+            sent_count += 1
+
+    # Save to DB
+    try:
+        if USE_POSTGRES:
+            conn = _pg_conn()
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO announcements (id, title, content, target, created_at, sent_count) VALUES (%s, %s, %s, %s, %s, %s)",
+                    (ann_id, title, content, target, created_at, sent_count)
+                )
+            conn.commit()
+            conn.close()
+        else:
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute(
+                    "INSERT INTO announcements (id, title, content, target, created_at, sent_count) VALUES (?, ?, ?, ?, ?, ?)",
+                    (ann_id, title, content, target, created_at, sent_count)
+                )
+                conn.commit()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({"ok": True, "sent_count": sent_count}), 201
+
+
+@app.delete("/admin/announcement/<ann_id>")
+@require_admin
+def admin_delete_announcement(ann_id: str):
+    """Remove um comunicado."""
+    try:
+        if USE_POSTGRES:
+            conn = _pg_conn()
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM announcements WHERE id=%s", (ann_id,))
+            conn.commit()
+            conn.close()
+        else:
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute("DELETE FROM announcements WHERE id=?", (ann_id,))
+                conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.get("/")

@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Native Admin — Leapy</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Krona+One&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --blue: #373afd;
+      --mint: #35dcb2;
+      --coral: #fc5959;
+      --yellow: #f2cf6b;
+      --dark: #1d0328;
+      --dark2: #2a0a38;
+      --gray: #f5f5f8;
+      --gray2: #e8e8f0;
+      --text: #1a1a2e;
+      --muted: #6b6b8a;
+      --sidebar-w: 240px;
+    }
+    html, body { height: 100%; font-family: 'Montserrat', sans-serif; background: var(--gray); color: var(--text); }
+    #root { height: 100%; }
+
+    /* Login */
+    .login-wrap {
+      min-height: 100vh;
+      background: var(--dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 48px 40px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.4);
+    }
+    .login-logo {
+      font-family: 'Krona One', sans-serif;
+      font-size: 24px;
+      color: var(--blue);
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .login-sub {
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 32px;
+    }
+    .login-card label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    .login-card input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid var(--gray2);
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .login-card input:focus { border-color: var(--blue); }
+    .login-btn {
+      width: 100%;
+      margin-top: 20px;
+      padding: 13px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      font-family: inherit;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+    .login-btn:hover { opacity: .88; }
+    .login-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .login-error {
+      margin-top: 14px;
+      padding: 10px 14px;
+      background: #fff0f0;
+      border-left: 3px solid var(--coral);
+      border-radius: 4px;
+      color: var(--coral);
+      font-size: 13px;
+    }
+
+    /* App shell */
+    .app-shell {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-w);
+      background: var(--dark);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      padding: 0;
+    }
+    .sidebar-brand {
+      padding: 28px 24px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .sidebar-brand-name {
+      font-family: 'Krona One', sans-serif;
+      font-size: 16px;
+      color: #fff;
+      line-height: 1;
+    }
+    .sidebar-brand-sub {
+      font-size: 11px;
+      color: var(--mint);
+      margin-top: 4px;
+      font-weight: 500;
+    }
+    .sidebar-nav {
+      flex: 1;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      color: rgba(255,255,255,0.6);
+      font-size: 14px;
+      font-weight: 500;
+      transition: background .15s, color .15s;
+      border: none;
+      background: transparent;
+      font-family: inherit;
+      text-align: left;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.07); color: #fff; }
+    .nav-item.active { background: var(--blue); color: #fff; }
+    .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+    .sidebar-footer {
+      padding: 16px 12px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .logout-btn {
+      width: 100%;
+      padding: 9px 12px;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      color: rgba(255,255,255,0.5);
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .logout-btn:hover { border-color: var(--coral); color: var(--coral); }
+
+    /* Main content */
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .topbar {
+      background: #fff;
+      border-bottom: 1px solid var(--gray2);
+      padding: 0 32px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .topbar-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .topbar-badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      background: var(--gray);
+      border-radius: 20px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .page-body {
+      flex: 1;
+      padding: 28px 32px;
+    }
+
+    /* Stat cards */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px 20px 18px;
+      border: 1px solid var(--gray2);
+    }
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+    }
+    .stat-value.blue { color: var(--blue); }
+    .stat-value.mint { color: #19b896; }
+    .stat-value.coral { color: var(--coral); }
+    .stat-value.yellow { color: #c8a020; }
+
+    /* Chart card */
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid var(--gray2);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 18px;
+    }
+    .row-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    /* Phase bars */
+    .phase-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .phase-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      width: 60px;
+      flex-shrink: 0;
+    }
+    .phase-bar-wrap {
+      flex: 1;
+      height: 10px;
+      background: var(--gray2);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .phase-bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      background: var(--blue);
+      transition: width .4s;
+    }
+    .phase-count {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      width: 24px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead tr { border-bottom: 2px solid var(--gray2); }
+    th {
+      text-align: left;
+      padding: 10px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      white-space: nowrap;
+    }
+    td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--gray2);
+      color: var(--text);
+    }
+    tbody tr:hover { background: var(--gray); }
+    tbody tr:last-child td { border-bottom: none; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .badge-blue { background: #e8e8ff; color: var(--blue); }
+    .badge-mint { background: #e0faf4; color: #17a882; }
+    .badge-coral { background: #ffe8e8; color: var(--coral); }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      transition: opacity .15s, background .15s;
+    }
+    .btn:hover { opacity: .88; }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
+    .btn-edit { background: var(--gray2); color: var(--text); }
+    .btn-delete { background: #ffe8e8; color: var(--coral); }
+    .btn-ghost { background: transparent; border: 1.5px solid var(--gray2); color: var(--text); }
+
+    /* Search */
+    .search-bar {
+      padding: 9px 14px;
+      border: 1.5px solid var(--gray2);
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      width: 260px;
+      transition: border-color .2s;
+    }
+    .search-bar:focus { border-color: var(--blue); }
+
+    /* Table toolbar */
+    .table-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    /* Announcement list */
+    .ann-list { display: flex; flex-direction: column; gap: 12px; }
+    .ann-item {
+      background: #fff;
+      border: 1px solid var(--gray2);
+      border-radius: 10px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .ann-info { flex: 1; }
+    .ann-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .ann-meta { font-size: 12px; color: var(--muted); }
+
+    /* Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal {
+      background: #fff;
+      border-radius: 14px;
+      padding: 32px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.25);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 24px;
+    }
+    .form-group {
+      margin-bottom: 18px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 6px;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid var(--gray2);
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .2s;
+      resize: vertical;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus { border-color: var(--blue); }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 24px;
+    }
+    .radio-group { display: flex; gap: 20px; align-items: center; }
+    .radio-group label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--dark);
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      z-index: 2000;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      animation: slideUp .2s ease;
+    }
+    .toast.error { background: var(--coral); }
+    @keyframes slideUp {
+      from { transform: translateY(16px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    /* Loading */
+    .loading { color: var(--muted); font-size: 14px; padding: 32px; text-align: center; }
+    .spin {
+      display: inline-block;
+      width: 18px; height: 18px;
+      border: 2px solid var(--gray2);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Top 5 table adjustments */
+    .top5-table th, .top5-table td { padding: 8px 10px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const API_BASE = 'https://web-production-fd5075.up.railway.app';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function apiFetch(path, token, options = {}) {
+  return fetch(API_BASE + path, {
+    ...options,
+    headers: {
+      'X-Admin-Token': token,
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+}
+
+function formatDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+
+function Toast({ msg, type, onDone }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 3000);
+    return () => clearTimeout(t);
+  }, []);
+  return <div className={`toast${type === 'error' ? ' error' : ''}`}>{msg}</div>;
+}
+
+// ─── Login ────────────────────────────────────────────────────────────────────
+
+function LoginScreen({ onLogin }) {
+  const [tok, setTok] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!tok.trim()) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await apiFetch('/admin/stats', tok.trim());
+      if (res.ok) {
+        localStorage.setItem('admin_token', tok.trim());
+        onLogin(tok.trim());
+      } else {
+        setError('Token inválido. Tente novamente.');
+      }
+    } catch {
+      setError('Erro de conexão. Verifique a URL da API.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="login-wrap">
+      <div className="login-card">
+        <div className="login-logo">Native Admin</div>
+        <div className="login-sub">Leapy — Painel de Administração</div>
+        <form onSubmit={handleSubmit}>
+          <label>Token de acesso</label>
+          <input
+            type="password"
+            placeholder="native-admin-..."
+            value={tok}
+            onChange={e => setTok(e.target.value)}
+            autoFocus
+          />
+          {error && <div className="login-error">{error}</div>}
+          <button className="login-btn" disabled={loading}>
+            {loading ? <><span className="spin"></span>Verificando...</> : 'Entrar'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+function Dashboard({ token, users }) {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const chartRef = useRef(null);
+  const chartInstance = useRef(null);
+
+  const loadStats = useCallback(async () => {
+    try {
+      const res = await apiFetch('/admin/stats', token);
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data);
+      }
+    } catch {}
+    setLoading(false);
+  }, [token]);
+
+  useEffect(() => {
+    loadStats();
+    const interval = setInterval(loadStats, 30000);
+    return () => clearInterval(interval);
+  }, [loadStats]);
+
+  useEffect(() => {
+    if (!stats || !chartRef.current) return;
+    if (chartInstance.current) chartInstance.current.destroy();
+    const labels = stats.messages_by_day.map(d => {
+      const [, m, day] = d.date.split('-');
+      return `${day}/${m}`;
+    });
+    chartInstance.current = new Chart(chartRef.current, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Recebidas',
+            data: stats.messages_by_day.map(d => d.inbound),
+            borderColor: '#373afd',
+            backgroundColor: 'rgba(55,58,253,0.08)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 3,
+          },
+          {
+            label: 'Enviadas',
+            data: stats.messages_by_day.map(d => d.outbound),
+            borderColor: '#35dcb2',
+            backgroundColor: 'rgba(53,220,178,0.08)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 3,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { font: { family: 'Montserrat', size: 12 } } } },
+        scales: {
+          x: { ticks: { font: { family: 'Montserrat', size: 11 } } },
+          y: { beginAtZero: true, ticks: { font: { family: 'Montserrat', size: 11 }, stepSize: 1 } },
+        },
+      },
+    });
+    return () => { if (chartInstance.current) chartInstance.current.destroy(); };
+  }, [stats]);
+
+  if (loading) return <div className="loading"><span className="spin"></span>Carregando...</div>;
+  if (!stats) return <div className="loading">Erro ao carregar estatísticas.</div>;
+
+  const phaseNames = { '1': 'Despertar', '2': 'Compreender', '3': 'Usar', '4': 'Criar', '5': 'Multiplicar' };
+  const maxPhaseCount = Math.max(1, ...Object.values(stats.users_by_phase));
+
+  const top5 = [...users]
+    .filter(u => u.nome)
+    .sort((a, b) => b.xp_total - a.xp_total)
+    .slice(0, 5);
+
+  return (
+    <div>
+      <div className="stat-grid">
+        <div className="stat-card">
+          <div className="stat-label">Total usuários</div>
+          <div className="stat-value blue">{stats.total_users}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Onboardados</div>
+          <div className="stat-value mint">{stats.onboarded}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Ativos hoje</div>
+          <div className="stat-value">{stats.active_today}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Mensagens recebidas</div>
+          <div className="stat-value blue">{stats.messages_inbound}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Missões concluídas</div>
+          <div className="stat-value coral">{stats.missions_completed}</div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-title">Mensagens por dia (14 dias)</div>
+        <div style={{ height: 220 }}>
+          <canvas ref={chartRef}></canvas>
+        </div>
+      </div>
+
+      <div className="row-2col">
+        <div className="card" style={{ marginBottom: 0 }}>
+          <div className="card-title">Usuários por fase</div>
+          {[1,2,3,4,5].map(f => {
+            const count = stats.users_by_phase[String(f)] || 0;
+            return (
+              <div key={f} className="phase-row">
+                <div className="phase-label">F{f} {phaseNames[f].slice(0,4)}.</div>
+                <div className="phase-bar-wrap">
+                  <div className="phase-bar-fill" style={{ width: `${(count / maxPhaseCount) * 100}%` }}></div>
+                </div>
+                <div className="phase-count">{count}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="card" style={{ marginBottom: 0 }}>
+          <div className="card-title">Top 5 usuários</div>
+          <div className="table-wrap">
+            <table className="top5-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Nome</th>
+                  <th>Fase</th>
+                  <th>XP</th>
+                  <th>Streak</th>
+                </tr>
+              </thead>
+              <tbody>
+                {top5.length === 0 && (
+                  <tr><td colSpan={5} style={{ color: 'var(--muted)', textAlign: 'center' }}>Sem dados</td></tr>
+                )}
+                {top5.map((u, i) => (
+                  <tr key={u.phone}>
+                    <td><span className="badge badge-blue">{i + 1}</span></td>
+                    <td style={{ fontWeight: 600 }}>{u.nome || '—'}</td>
+                    <td><span className="badge badge-mint">F{u.fase_atual}</span></td>
+                    <td style={{ fontWeight: 700 }}>{u.xp_total}</td>
+                    <td>🔥 {u.streak}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── User Modal ───────────────────────────────────────────────────────────────
+
+function UserModal({ user, isNew, token, onClose, onSaved, onToast }) {
+  const [form, setForm] = useState(
+    isNew
+      ? { phone: '', nome: '', fase_atual: 1, missao_index: 0, xp_total: 0, streak: 0 }
+      : {
+          nome: user.nome || '',
+          fase_atual: user.fase_atual || 1,
+          missao_index: user.missao_index || 0,
+          xp_total: user.xp_total || 0,
+          streak: user.streak || 0,
+        }
+  );
+  const [saving, setSaving] = useState(false);
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      let res;
+      if (isNew) {
+        res = await apiFetch('/admin/user', token, {
+          method: 'POST',
+          body: JSON.stringify({ ...form, onboarding_step: 2 }),
+        });
+      } else {
+        res = await apiFetch(`/admin/user/${encodeURIComponent(user.phone)}`, token, {
+          method: 'PUT',
+          body: JSON.stringify(form),
+        });
+      }
+      if (res.ok) {
+        onToast(isNew ? 'Usuário criado!' : 'Usuário atualizado!');
+        onSaved();
+        onClose();
+      } else {
+        onToast('Erro ao salvar', 'error');
+      }
+    } catch {
+      onToast('Erro de conexão', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-title">{isNew ? 'Adicionar usuário' : `Editar — ${user.nome || user.phone}`}</div>
+        {isNew && (
+          <div className="form-group">
+            <label>Telefone (com DDI, ex: 5511999999999)</label>
+            <input value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="5511999999999" />
+          </div>
+        )}
+        <div className="form-group">
+          <label>Nome</label>
+          <input value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Ex: Ana" />
+        </div>
+        <div className="form-group">
+          <label>Fase atual</label>
+          <select value={form.fase_atual} onChange={e => set('fase_atual', Number(e.target.value))}>
+            {[1,2,3,4,5].map(f => <option key={f} value={f}>Fase {f}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Índice da missão (0–2)</label>
+          <input type="number" min={0} max={2} value={form.missao_index} onChange={e => set('missao_index', Number(e.target.value))} />
+        </div>
+        <div className="form-group">
+          <label>XP total</label>
+          <input type="number" min={0} value={form.xp_total} onChange={e => set('xp_total', Number(e.target.value))} />
+        </div>
+        <div className="form-group">
+          <label>Streak (dias)</label>
+          <input type="number" min={0} value={form.streak} onChange={e => set('streak', Number(e.target.value))} />
+        </div>
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? <><span className="spin"></span>Salvando...</> : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Users Tab ────────────────────────────────────────────────────────────────
+
+function UsersTab({ token, users, loading, onRefresh, onToast }) {
+  const [search, setSearch] = useState('');
+  const [editUser, setEditUser] = useState(null);
+  const [addOpen, setAddOpen] = useState(false);
+
+  const filtered = users.filter(u => {
+    const q = search.toLowerCase();
+    return (u.nome || '').toLowerCase().includes(q) || (u.phone || '').includes(q);
+  });
+
+  async function handleDelete(user) {
+    if (!window.confirm(`Excluir ${user.nome || user.phone}? Esta ação é irreversível.`)) return;
+    try {
+      const res = await apiFetch(`/admin/user/${encodeURIComponent(user.phone)}`, token, { method: 'DELETE' });
+      if (res.ok) { onToast('Usuário removido'); onRefresh(); }
+      else onToast('Erro ao remover', 'error');
+    } catch { onToast('Erro de conexão', 'error'); }
+  }
+
+  return (
+    <div>
+      <div className="card">
+        <div className="table-toolbar">
+          <input
+            className="search-bar"
+            placeholder="Buscar por nome ou telefone..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <button className="btn btn-primary" onClick={() => setAddOpen(true)}>
+            + Adicionar usuário
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="loading"><span className="spin"></span>Carregando...</div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Telefone</th>
+                  <th>Fase</th>
+                  <th>Missão idx</th>
+                  <th>XP</th>
+                  <th>Streak</th>
+                  <th>Última atividade</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 && (
+                  <tr><td colSpan={8} style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px' }}>Nenhum usuário encontrado.</td></tr>
+                )}
+                {filtered.map(u => (
+                  <tr key={u.phone}>
+                    <td style={{ fontWeight: 600 }}>{u.nome || <span style={{ color: 'var(--muted)' }}>—</span>}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{u.phone}</td>
+                    <td><span className="badge badge-blue">F{u.fase_atual}</span></td>
+                    <td>{u.missao_index}</td>
+                    <td style={{ fontWeight: 700 }}>{u.xp_total}</td>
+                    <td>🔥 {u.streak}</td>
+                    <td>{formatDate(u.ultima_atividade)}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-sm btn-edit" onClick={() => setEditUser(u)}>Editar</button>
+                        <button className="btn btn-sm btn-delete" onClick={() => handleDelete(u)}>Excluir</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {editUser && (
+        <UserModal
+          user={editUser}
+          isNew={false}
+          token={token}
+          onClose={() => setEditUser(null)}
+          onSaved={onRefresh}
+          onToast={onToast}
+        />
+      )}
+      {addOpen && (
+        <UserModal
+          user={null}
+          isNew={true}
+          token={token}
+          onClose={() => setAddOpen(false)}
+          onSaved={onRefresh}
+          onToast={onToast}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Announcement Modal ───────────────────────────────────────────────────────
+
+function AnnouncementModal({ token, onClose, onSaved, onToast }) {
+  const [form, setForm] = useState({ title: '', content: '', target: 'all', phone: '' });
+  const [saving, setSaving] = useState(false);
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function handleSend() {
+    if (!form.title.trim() || !form.content.trim()) {
+      onToast('Título e conteúdo são obrigatórios', 'error'); return;
+    }
+    const target = form.target === 'all' ? 'all' : form.phone.trim();
+    if (form.target === 'specific' && !target) {
+      onToast('Informe o telefone do destinatário', 'error'); return;
+    }
+    setSaving(true);
+    try {
+      const res = await apiFetch('/admin/announcement', token, {
+        method: 'POST',
+        body: JSON.stringify({ title: form.title, content: form.content, target }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        onToast(`Comunicado enviado para ${data.sent_count} usuário(s)!`);
+        onSaved();
+        onClose();
+      } else {
+        onToast('Erro ao enviar comunicado', 'error');
+      }
+    } catch {
+      onToast('Erro de conexão', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-title">Novo comunicado</div>
+        <div className="form-group">
+          <label>Título</label>
+          <input value={form.title} onChange={e => set('title', e.target.value)} placeholder="Ex: Atualização da semana" />
+        </div>
+        <div className="form-group">
+          <label>Conteúdo (mensagem WhatsApp)</label>
+          <textarea
+            rows={5}
+            value={form.content}
+            onChange={e => set('content', e.target.value)}
+            placeholder="Sua mensagem aqui... Use *negrito* e _itálico_ como no WhatsApp."
+          />
+        </div>
+        <div className="form-group">
+          <label>Destinatário</label>
+          <div className="radio-group">
+            <label>
+              <input type="radio" name="target" value="all" checked={form.target === 'all'} onChange={() => set('target', 'all')} />
+              Todos os usuários onboardados
+            </label>
+            <label>
+              <input type="radio" name="target" value="specific" checked={form.target === 'specific'} onChange={() => set('target', 'specific')} />
+              Usuário específico
+            </label>
+          </div>
+        </div>
+        {form.target === 'specific' && (
+          <div className="form-group">
+            <label>Telefone (ex: 5511999999999)</label>
+            <input value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="5511999999999" />
+          </div>
+        )}
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={handleSend} disabled={saving}>
+            {saving ? <><span className="spin"></span>Enviando...</> : 'Enviar comunicado'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Announcements Tab ────────────────────────────────────────────────────────
+
+function AnnouncementsTab({ token, onToast }) {
+  const [announcements, setAnnouncements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiFetch('/admin/announcements', token);
+      if (res.ok) setAnnouncements(await res.json());
+    } catch {}
+    setLoading(false);
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleDelete(id) {
+    if (!window.confirm('Excluir este comunicado?')) return;
+    try {
+      const res = await apiFetch(`/admin/announcement/${id}`, token, { method: 'DELETE' });
+      if (res.ok) { onToast('Comunicado removido'); load(); }
+      else onToast('Erro ao remover', 'error');
+    } catch { onToast('Erro de conexão', 'error'); }
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <button className="btn btn-primary" onClick={() => setModalOpen(true)}>
+          + Novo comunicado
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="loading"><span className="spin"></span>Carregando...</div>
+      ) : announcements.length === 0 ? (
+        <div className="card" style={{ textAlign: 'center', color: 'var(--muted)', padding: '40px' }}>
+          Nenhum comunicado enviado ainda.
+        </div>
+      ) : (
+        <div className="ann-list">
+          {announcements.map(a => (
+            <div key={a.id} className="ann-item">
+              <div className="ann-info">
+                <div className="ann-title">{a.title}</div>
+                <div className="ann-meta">
+                  <span className="badge badge-mint" style={{ marginRight: 8 }}>
+                    {a.target === 'all' ? 'Todos' : a.target}
+                  </span>
+                  {a.sent_count} enviado(s) · {formatDate(a.created_at)}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, maxWidth: 500, whiteSpace: 'pre-line' }}>
+                  {a.content.slice(0, 120)}{a.content.length > 120 ? '…' : ''}
+                </div>
+              </div>
+              <button className="btn btn-sm btn-delete" onClick={() => handleDelete(a.id)}>Excluir</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {modalOpen && (
+        <AnnouncementModal
+          token={token}
+          onClose={() => setModalOpen(false)}
+          onSaved={load}
+          onToast={onToast}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── App Shell ────────────────────────────────────────────────────────────────
+
+function App() {
+  const [token, setToken] = useState(() => localStorage.getItem('admin_token') || '');
+  const [tab, setTab] = useState('dashboard');
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  function showToast(msg, type = 'ok') {
+    setToast({ msg, type });
+  }
+
+  const loadUsers = useCallback(async () => {
+    if (!token) return;
+    setUsersLoading(true);
+    try {
+      const res = await apiFetch('/admin/users', token);
+      if (res.ok) setUsers(await res.json());
+    } catch {}
+    setUsersLoading(false);
+  }, [token]);
+
+  useEffect(() => {
+    if (token) loadUsers();
+  }, [token, loadUsers]);
+
+  function logout() {
+    localStorage.removeItem('admin_token');
+    setToken('');
+    setUsers([]);
+  }
+
+  if (!token) {
+    return <LoginScreen onLogin={t => { setToken(t); }} />;
+  }
+
+  const navItems = [
+    { id: 'dashboard', icon: '📊', label: 'Dashboard' },
+    { id: 'users',     icon: '👥', label: 'Usuários' },
+    { id: 'announcements', icon: '📣', label: 'Comunicados' },
+  ];
+
+  const tabTitles = {
+    dashboard: 'Dashboard',
+    users: 'Usuários',
+    announcements: 'Comunicados',
+  };
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <div className="sidebar-brand-name">Native Admin</div>
+          <div className="sidebar-brand-sub">Leapy · Painel</div>
+        </div>
+        <nav className="sidebar-nav">
+          {navItems.map(item => (
+            <button
+              key={item.id}
+              className={`nav-item${tab === item.id ? ' active' : ''}`}
+              onClick={() => setTab(item.id)}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-footer">
+          <button className="logout-btn" onClick={logout}>Sair</button>
+        </div>
+      </aside>
+
+      <div className="main-content">
+        <div className="topbar">
+          <div className="topbar-title">{tabTitles[tab]}</div>
+          <span className="topbar-badge">{users.length} usuários</span>
+        </div>
+        <div className="page-body">
+          {tab === 'dashboard' && (
+            <Dashboard token={token} users={users} />
+          )}
+          {tab === 'users' && (
+            <UsersTab
+              token={token}
+              users={users}
+              loading={usersLoading}
+              onRefresh={loadUsers}
+              onToast={showToast}
+            />
+          )}
+          {tab === 'announcements' && (
+            <AnnouncementsTab token={token} onToast={showToast} />
+          )}
+        </div>
+      </div>
+
+      {toast && (
+        <Toast msg={toast.msg} type={toast.type} onDone={() => setToast(null)} />
+      )}
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
