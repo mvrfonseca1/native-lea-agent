@@ -735,6 +735,8 @@ def receive_webhook():
             log_message(phone, "inbound", text)
 
             state = get_user_state(phone)
+            # Atualiza ultima_atividade em toda mensagem recebida (não só ao concluir missão)
+            state["ultima_atividade"] = datetime.now().date().isoformat()
             replies = route_message(state, text)
             save_user_state(phone, state)
 
@@ -759,6 +761,7 @@ def receive_webhook():
                 log_message(phone, "inbound", text)
 
                 state = get_user_state(phone)
+                state["ultima_atividade"] = datetime.now().date().isoformat()
                 replies = route_message(state, text)
                 save_user_state(phone, state)
 
@@ -808,7 +811,9 @@ def send_engagement_message(phone: str, template_key: str, state: dict):
 def run_engagement_check():
     """Verifica usuários inativos e envia mensagens proativas."""
     logger.info("Rodando verificação de engajamento...")
-    now = datetime.now()
+    import pytz
+    tz_br = pytz.timezone("America/Sao_Paulo")
+    now = datetime.now(tz=tz_br)
     hour = now.hour
 
     for state in get_all_users():
@@ -821,6 +826,10 @@ def run_engagement_check():
 
         try:
             last_active = datetime.fromisoformat(ultima)
+            # Garante que last_active é timezone-aware para comparar com now (tz-aware)
+            if last_active.tzinfo is None:
+                import pytz
+                last_active = pytz.timezone("America/Sao_Paulo").localize(last_active)
         except Exception:
             continue
 
@@ -1273,22 +1282,28 @@ def simulate(phone: str = "5511999999999"):
 
 # ─── Entry Point ──────────────────────────────────────────────────────────────
 
+_scheduler_started = False
+
 def start_scheduler():
+    global _scheduler_started
+    if _scheduler_started:
+        return
+    _scheduler_started = True
     scheduler = BackgroundScheduler(timezone="America/Sao_Paulo")
     scheduler.add_job(run_engagement_check, "cron", hour="*", minute=0)
     scheduler.start()
     logger.info("Scheduler de engajamento iniciado (verifica a cada hora).")
-    return scheduler
+
+# Inicialização no nível de módulo — funciona com gunicorn e python direto
+init_db()
+start_scheduler()
 
 if __name__ == "__main__":
     import sys
 
     if len(sys.argv) > 1 and sys.argv[1] == "simulate":
-        init_db()
         simulate()
     else:
-        init_db()
-        start_scheduler()
         port = int(os.environ.get("PORT", 8080))
         logger.info(f"Léa Agent iniciando na porta {port}...")
         app.run(host="0.0.0.0", port=port, debug=False)
