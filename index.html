@@ -1,0 +1,1781 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Native — Leapy AI</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --blue:   #3738FD;
+      --mint:   #3DD9AC;
+      --coral:  #F06B6B;
+      --yellow: #F2C84B;
+      --dark:   #1D0328;
+      --dark2:  #2A0B3A;
+      --gray:   #F3F3F3;
+      --gray2:  #E8E8EE;
+      --text:   #1D0328;
+      --muted:  #7B7B99;
+      --white:  #FFFFFF;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background: var(--gray);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    button { cursor: pointer; border: none; background: none; font-family: inherit; }
+    textarea, input { font-family: inherit; }
+
+    /* Layout */
+    .app { display: flex; min-height: 100vh; }
+
+    /* SIDEBAR */
+    .sidebar {
+      width: 240px;
+      min-height: 100vh;
+      background: var(--dark);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      z-index: 100;
+    }
+
+    .sidebar-logo {
+      padding: 28px 24px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .logo-wordmark {
+      font-size: 22px;
+      font-weight: 900;
+      color: white;
+      letter-spacing: -0.5px;
+    }
+    .logo-sub {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--mint);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .sidebar-nav { flex: 1; padding: 16px 12px; }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 12px;
+      border-radius: 10px;
+      color: rgba(255,255,255,0.5);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-bottom: 2px;
+      width: 100%;
+      text-align: left;
+    }
+    .nav-item:hover { color: rgba(255,255,255,0.85); background: rgba(255,255,255,0.06); }
+    .nav-item.active { color: white; background: rgba(55,56,253,0.3); }
+    .nav-item.active .nav-dot { background: var(--blue); }
+
+    .nav-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: transparent;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .sidebar-user {
+      padding: 16px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .user-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .avatar {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      background: var(--blue);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .user-name { font-size: 12px; font-weight: 700; color: white; }
+    .user-role { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 1px; }
+
+    .xp-mini {
+      margin-top: 10px;
+    }
+    .xp-mini-bar {
+      height: 3px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .xp-mini-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--blue), var(--mint));
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+    .xp-mini-label {
+      font-size: 10px;
+      color: rgba(255,255,255,0.35);
+      margin-top: 4px;
+    }
+
+    /* MAIN CONTENT */
+    .main {
+      margin-left: 240px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* TOP BAR */
+    .topbar {
+      background: white;
+      border-bottom: 1px solid var(--gray2);
+      padding: 0 32px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .topbar-title { font-size: 16px; font-weight: 800; color: var(--dark); }
+    .topbar-sub { font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 1px; }
+
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+
+    .streak-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--gray);
+      border-radius: 20px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--dark);
+    }
+
+    .wa-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      border-radius: 20px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #15803D;
+    }
+
+    .wa-dot { width: 7px; height: 7px; border-radius: 50%; background: #22C55E; }
+
+    /* PAGE CONTENT */
+    .page { padding: 32px; flex: 1; }
+    .page.mission-page { padding: 0; display: flex; flex-direction: column; }
+
+    /* SECTION LABEL */
+    .section-label {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    /* CARDS */
+    .card {
+      background: white;
+      border-radius: 16px;
+      border: 1px solid var(--gray2);
+    }
+
+    .card-blue {
+      background: var(--blue);
+      border-radius: 16px;
+    }
+
+    .card-dark {
+      background: var(--dark);
+      border-radius: 16px;
+    }
+
+    /* GRID */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+
+    /* STAT CARD */
+    .stat-card {
+      background: white;
+      border-radius: 16px;
+      border: 1px solid var(--gray2);
+      padding: 20px 24px;
+    }
+    .stat-value { font-size: 28px; font-weight: 900; color: var(--dark); }
+    .stat-label { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 4px; }
+    .stat-tag {
+      display: inline-block;
+      background: rgba(55,56,253,0.08);
+      color: var(--blue);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 20px;
+      margin-top: 8px;
+    }
+
+    /* MISSION CARD */
+    .mission-card {
+      padding: 16px 20px;
+      border-radius: 12px;
+      border: 1.5px solid var(--gray2);
+      background: white;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      cursor: default;
+      transition: all 0.15s;
+      margin-bottom: 8px;
+    }
+    .mission-card.clickable { cursor: pointer; }
+    .mission-card.clickable:hover { border-color: var(--blue); box-shadow: 0 4px 16px rgba(55,56,253,0.08); transform: translateY(-1px); }
+    .mission-card.active { border-color: var(--blue); background: rgba(55,56,253,0.03); }
+    .mission-card.done { border-color: var(--mint); background: rgba(61,217,172,0.04); }
+    .mission-card.locked { opacity: 0.55; }
+
+    .mission-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 13px;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .mission-title { font-size: 14px; font-weight: 700; color: var(--dark); }
+    .mission-desc { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+    .mission-meta { display: flex; gap: 10px; margin-top: 8px; }
+    .mission-tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 20px;
+      background: var(--gray);
+      color: var(--muted);
+    }
+    .mission-xp { color: var(--blue); background: rgba(55,56,253,0.08); }
+
+    /* PHASE CARD */
+    .phase-card {
+      background: white;
+      border-radius: 16px;
+      border: 1.5px solid var(--gray2);
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .phase-card:hover { border-color: var(--blue); box-shadow: 0 4px 20px rgba(55,56,253,0.08); transform: translateY(-2px); }
+    .phase-card.active-phase { border-color: var(--blue); }
+    .phase-card.done-phase { border-color: var(--mint); }
+    .phase-card.locked-phase { opacity: 0.5; cursor: default; }
+    .phase-card.locked-phase:hover { transform: none; box-shadow: none; border-color: var(--gray2); }
+
+    /* BADGE */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .badge-blue { background: rgba(55,56,253,0.1); color: var(--blue); }
+    .badge-mint { background: rgba(61,217,172,0.12); color: #0E9F78; }
+    .badge-gray { background: var(--gray); color: var(--muted); }
+    .badge-yellow { background: rgba(242,200,75,0.15); color: #9A7A00; }
+    .badge-coral { background: rgba(240,107,107,0.1); color: #C0392B; }
+
+    /* PROGRESS BAR */
+    .prog-bar {
+      height: 6px;
+      background: var(--gray2);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .prog-fill {
+      height: 100%;
+      border-radius: 8px;
+      background: linear-gradient(90deg, var(--blue), var(--mint));
+      transition: width 0.5s ease;
+    }
+
+    /* BUTTON */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      transition: all 0.15s;
+      cursor: pointer;
+    }
+    .btn-primary { background: var(--blue); color: white; }
+    .btn-primary:hover { background: #2625E0; }
+    .btn-ghost { background: transparent; color: var(--blue); border: 1.5px solid var(--blue); }
+    .btn-ghost:hover { background: rgba(55,56,253,0.06); }
+    .btn-full { width: 100%; }
+    .btn-lg { padding: 16px 28px; font-size: 15px; border-radius: 12px; }
+    .btn-disabled { background: var(--gray2); color: var(--muted); cursor: not-allowed; }
+
+    /* HERO BANNER */
+    .hero-banner {
+      background: var(--blue);
+      border-radius: 20px;
+      padding: 28px 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-banner::before {
+      content: '';
+      position: absolute;
+      top: -40px; right: -40px;
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      border: 40px solid rgba(255,255,255,0.06);
+    }
+    .hero-banner::after {
+      content: '';
+      position: absolute;
+      top: -80px; right: -80px;
+      width: 300px; height: 300px;
+      border-radius: 50%;
+      border: 40px solid rgba(255,255,255,0.04);
+    }
+
+    /* RANKING TABLE */
+    .rank-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 20px;
+      border-radius: 10px;
+      transition: background 0.1s;
+    }
+    .rank-row:hover { background: var(--gray); }
+    .rank-row.me { background: rgba(55,56,253,0.05); }
+
+    /* JOURNEY TIMELINE */
+    .timeline { position: relative; }
+    .timeline-connector {
+      width: 2px;
+      background: var(--gray2);
+      margin: 0 auto;
+      height: 20px;
+    }
+    .timeline-connector.active { background: var(--blue); }
+
+    /* MISSION FULL PAGE */
+    .mission-header {
+      background: var(--dark);
+      padding: 32px;
+      color: white;
+    }
+    .mission-body { padding: 32px; flex: 1; }
+
+    /* ANIMATIONS */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.25s ease forwards; }
+
+    @keyframes popIn {
+      0% { opacity: 0; transform: scale(0.9); }
+      70% { transform: scale(1.02); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    .pop-in { animation: popIn 0.35s ease forwards; }
+
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.7); }
+    }
+    .pulse { animation: pulseDot 2s ease-in-out infinite; }
+
+    /* DIVIDER */
+    .divider { height: 1px; background: var(--gray2); margin: 20px 0; }
+
+    /* GAP UTILS */
+    .gap-4 { gap: 4px; }
+    .gap-8 { gap: 8px; }
+    .gap-12 { gap: 12px; }
+    .gap-16 { gap: 16px; }
+    .gap-24 { gap: 24px; }
+
+    .flex { display: flex; }
+    .flex-col { flex-direction: column; }
+    .items-center { align-items: center; }
+    .items-start { align-items: flex-start; }
+    .justify-between { justify-content: space-between; }
+    .flex-1 { flex: 1; }
+    .flex-shrink-0 { flex-shrink: 0; }
+
+    .mb-4 { margin-bottom: 4px; }
+    .mb-8 { margin-bottom: 8px; }
+    .mb-12 { margin-bottom: 12px; }
+    .mb-16 { margin-bottom: 16px; }
+    .mb-24 { margin-bottom: 24px; }
+    .mb-32 { margin-bottom: 32px; }
+    .mt-4 { margin-top: 4px; }
+    .mt-8 { margin-top: 8px; }
+    .mt-12 { margin-top: 12px; }
+    .mt-16 { margin-top: 16px; }
+
+    .p-20 { padding: 20px; }
+    .p-24 { padding: 24px; }
+    .p-28 { padding: 28px; }
+    .p-32 { padding: 32px; }
+
+    .text-white { color: white; }
+    .text-muted { color: var(--muted); }
+    .text-blue { color: var(--blue); }
+    .text-mint { color: var(--mint); }
+    .text-dark { color: var(--dark); }
+
+    .fw-700 { font-weight: 700; }
+    .fw-800 { font-weight: 800; }
+    .fw-900 { font-weight: 900; }
+
+    .fs-11 { font-size: 11px; }
+    .fs-12 { font-size: 12px; }
+    .fs-13 { font-size: 13px; }
+    .fs-14 { font-size: 14px; }
+    .fs-18 { font-size: 18px; }
+    .fs-20 { font-size: 20px; }
+    .fs-24 { font-size: 24px; }
+
+    .rounded-12 { border-radius: 12px; }
+    .rounded-16 { border-radius: 16px; }
+
+    .w-full { width: 100%; }
+
+    /* LOGIN */
+    .login-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--dark);
+    }
+    .login-box {
+      background: white;
+      border-radius: 24px;
+      padding: 48px 40px;
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+    }
+    .login-input {
+      width: 100%;
+      border: 1.5px solid var(--gray2);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--dark);
+      outline: none;
+      transition: border 0.15s;
+      margin: 20px 0 12px;
+    }
+    .login-input:focus { border-color: var(--blue); }
+    .login-btn {
+      width: 100%;
+      background: var(--blue);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity 0.15s;
+    }
+    .login-btn:hover { opacity: 0.88; }
+    .login-btn:disabled { opacity: 0.5; cursor: default; }
+
+    /* SCROLLBAR */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--gray2); border-radius: 4px; }
+
+    /* RESPONSIVE */
+    @media (max-width: 900px) {
+      .sidebar { width: 64px; }
+      .sidebar-logo .logo-wordmark { display: none; }
+      .sidebar-logo .logo-sub { display: none; }
+      .nav-item span { display: none; }
+      .sidebar-user .user-name { display: none; }
+      .sidebar-user .user-role { display: none; }
+      .sidebar-user .xp-mini { display: none; }
+      .main { margin-left: 64px; }
+      .page { padding: 20px; }
+      .grid-3 { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const API_BASE = 'https://web-production-fd5075.up.railway.app';
+
+// ── DATA ────────────────────────────────────────────────────────
+
+const COLORS = {
+  blue: '#3738FD', mint: '#3DD9AC', coral: '#F06B6B',
+  yellow: '#F2C84B', dark: '#1D0328', muted: '#7B7B99',
+};
+
+const phases = [
+  {
+    id: 1, name: 'Despertar', emoji: '🌅', color: '#3738FD',
+    desc: 'Descubra o que é IA e por que ela muda tudo na sua carreira.',
+    weeks: 2, status: 'active',
+    missions: [
+      { id: 1, name: 'Caçada de IA', time: '20 min', xp: 100, status: 'completed',
+        desc: 'Encontre 5 produtos do seu dia que usam IA e explique como cada um funciona.',
+        tip: 'Pensa no teclado do celular, apps de música, recomendação de série... IA tá em todo lugar!' },
+      { id: 2, name: 'Meu futuro com IA', time: '15 min', xp: 150, status: 'active',
+        desc: 'Escreva como a IA pode mudar sua área de trabalho nos próximos 3 anos.',
+        tip: 'Não precisa ser técnico. Pensa no teu trabalho hoje — o que poderia ser feito mais rápido com ajuda da IA?' },
+      { id: 3, name: 'Mito ou verdade', time: '10 min', xp: 80, status: 'locked',
+        desc: 'Quiz com 10 afirmações sobre IA — separa o real do hype.',
+        tip: 'Vai por intuição. O objetivo é sair com a cabeça no lugar sobre o que IA faz e o que não faz.' },
+    ]
+  },
+  {
+    id: 2, name: 'Compreender', emoji: '🧠', color: '#3DD9AC',
+    desc: 'Entenda como a IA funciona — sem precisar programar.',
+    weeks: 3, status: 'locked',
+    missions: [
+      { id: 4, name: 'Como o algoritmo pensa', time: '20 min', xp: 120, status: 'locked', desc: 'Analise por que o Spotify ou Netflix te recomendou algo e escreva a lógica.', tip: '' },
+      { id: 5, name: 'Treine uma IA', time: '30 min', xp: 200, status: 'locked', desc: 'Use o Teachable Machine para treinar um modelo simples com imagens.', tip: '' },
+      { id: 6, name: 'IA mentiu pra mim', time: '20 min', xp: 150, status: 'locked', desc: 'Encontre um erro de IA real e explique por que aconteceu.', tip: '' },
+    ]
+  },
+  {
+    id: 3, name: 'Usar', emoji: '⚡', color: '#F2C84B',
+    desc: 'Domine ferramentas e prompts no seu trabalho real.',
+    weeks: 4, status: 'locked',
+    missions: [
+      { id: 7, name: 'Prompt perfeito', time: '20 min', xp: 150, status: 'locked', desc: 'Crie um prompt que resolva um problema real do seu trabalho.', tip: '' },
+      { id: 8, name: 'Kit de ferramentas', time: '25 min', xp: 120, status: 'locked', desc: 'Monte as 5 ferramentas de IA mais úteis para sua função.', tip: '' },
+      { id: 9, name: 'Antes e depois', time: '30 min', xp: 180, status: 'locked', desc: 'Faça uma tarefa sem e com IA. Compare os resultados.', tip: '' },
+      { id: 10, name: 'Automação simples', time: '30 min', xp: 200, status: 'locked', desc: 'Automatize uma tarefa repetitiva com IA.', tip: '' },
+    ]
+  },
+  {
+    id: 4, name: 'Criar', emoji: '🚀', color: '#F06B6B',
+    desc: 'Resolva um problema real do trabalho com IA.',
+    weeks: 4, status: 'locked',
+    missions: [
+      { id: 11, name: 'Diagnóstico', time: '20 min', xp: 150, status: 'locked', desc: 'Mapeie 3 problemas no trabalho que IA poderia resolver.', tip: '' },
+      { id: 12, name: 'Proposta', time: '30 min', xp: 200, status: 'locked', desc: 'Escolha 1 problema e detalhe uma solução com IA.', tip: '' },
+      { id: 13, name: 'Protótipo', time: '60 min', xp: 400, status: 'locked', desc: 'Construa o MVP: prompt avançado, automação ou processo novo.', tip: '' },
+      { id: 14, name: 'Apresentação', time: '30 min', xp: 300, status: 'locked', desc: 'Apresente para seu gestor e colete feedback real.', tip: '' },
+    ]
+  },
+  {
+    id: 5, name: 'Multiplicar', emoji: '✨', color: '#9B59B6',
+    desc: 'Vire referência e multiplique IA no seu time.',
+    weeks: 2, status: 'locked',
+    missions: [
+      { id: 15, name: 'Mini-guia', time: '30 min', xp: 200, status: 'locked', desc: 'Crie um tutorial de 1 página sobre uma ferramenta de IA para o time.', tip: '' },
+      { id: 16, name: 'Workshop', time: '30 min', xp: 400, status: 'locked', desc: 'Facilite uma sessão de 30 min com pelo menos 2 colegas.', tip: '' },
+      { id: 17, name: 'Manifesto', time: '20 min', xp: 250, status: 'locked', desc: 'Escreva suas convicções sobre IA no trabalho. Vai pro seu portfólio.', tip: '' },
+    ]
+  },
+];
+
+let user = {
+  name: 'Ana Silva', initials: 'AS', role: 'Jovem Aprendiz',
+  company: 'Grupo Boticário', xp: 280, xpMax: 500, level: 2, streak: 5,
+};
+
+let ranking = [
+  { pos: 1, name: 'João Mendes', initials: 'JM', xp: 920, company: 'Stone', phase: 3 },
+  { pos: 2, name: 'Clara Reis', initials: 'CR', xp: 780, company: 'Ambev', phase: 2 },
+  { pos: 3, name: 'Ana Silva', initials: 'AS', xp: 280, company: 'Boticário', phase: 1, isUser: true },
+  { pos: 4, name: 'Pedro Kato', initials: 'PK', xp: 250, company: 'Stone', phase: 1 },
+  { pos: 5, name: 'Beatriz Lima', initials: 'BL', xp: 180, company: 'QuintoAndar', phase: 1 },
+  { pos: 6, name: 'Lucas M.', initials: 'LM', xp: 140, company: 'Magalu', phase: 1 },
+  { pos: 7, name: 'Camila O.', initials: 'CO', xp: 90, company: 'Sem Parar', phase: 1 },
+];
+
+const badges = [
+  { icon: '🎯', name: 'Primeiro Salto', earned: true, desc: 'Completou a 1ª missão' },
+  { icon: '🔍', name: 'Caçador', earned: true, desc: 'Encontrou IA no cotidiano' },
+  { icon: '🧪', name: 'Curioso', earned: false, desc: 'Completou a fase 2' },
+  { icon: '⚡', name: 'Usuário', earned: false, desc: 'Completou a fase 3' },
+  { icon: '🚀', name: 'Builder', earned: false, desc: 'Entregou um projeto real' },
+  { icon: '✨', name: 'Multiplicador', earned: false, desc: 'Facilitou um workshop' },
+];
+
+// ── ICONS ────────────────────────────────────────────────────────
+
+const Icons = {
+  Home: ({ active }) => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill={active ? '#3738FD' : 'none'} stroke={active ? '#3738FD' : 'rgba(255,255,255,0.45)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+      <polyline points="9,22 9,12 15,12 15,22"/>
+    </svg>
+  ),
+  Map: ({ active }) => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#3738FD' : 'rgba(255,255,255,0.45)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="3,6 9,3 15,6 21,3 21,18 15,21 9,18 3,21"/>
+      <line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/>
+    </svg>
+  ),
+  Trophy: ({ active }) => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#3738FD' : 'rgba(255,255,255,0.45)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+      <path d="M4 22h16"/><path d="M10 22v-4"/><path d="M14 22v-4"/>
+      <path d="M6 4h12v8a6 6 0 0 1-12 0V4Z"/>
+    </svg>
+  ),
+  User: ({ active }) => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={active ? '#3738FD' : 'rgba(255,255,255,0.45)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+    </svg>
+  ),
+  Check: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20,6 9,17 4,12"/>
+    </svg>
+  ),
+  Lock: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    </svg>
+  ),
+  Arrow: ({ color }) => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color || 'currentColor'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/>
+    </svg>
+  ),
+  Back: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12,19 5,12 12,5"/>
+    </svg>
+  ),
+  WA: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="#22C55E">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+    </svg>
+  ),
+};
+
+// ── COMPONENTS ───────────────────────────────────────────────────
+
+const Sidebar = ({ screen, setScreen }) => {
+  const nav = [
+    { id: 'home', label: 'Início', Icon: Icons.Home },
+    { id: 'journey', label: 'Jornada', Icon: Icons.Map },
+    { id: 'ranking', label: 'Ranking', Icon: Icons.Trophy },
+    { id: 'profile', label: 'Perfil', Icon: Icons.User },
+  ];
+  const xpPct = Math.round((user.xp / user.xpMax) * 100);
+
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-logo">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 8,
+            background: COLORS.blue,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontWeight: 900, fontSize: 14, color: 'white', flexShrink: 0,
+          }}>N</div>
+          <div>
+            <div className="logo-wordmark">Native</div>
+            <div className="logo-sub">by Leapy</div>
+          </div>
+        </div>
+      </div>
+
+      <nav className="sidebar-nav">
+        {nav.map(({ id, label, Icon }) => (
+          <button key={id} onClick={() => setScreen(id)} className={`nav-item ${screen === id ? 'active' : ''}`}>
+            <Icon active={screen === id} />
+            <span>{label}</span>
+            {screen === id && <div className="nav-dot" />}
+          </button>
+        ))}
+
+        <div style={{ margin: '20px 0 12px', padding: '0 12px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)', marginBottom: 8 }}>
+            Fase atual
+          </div>
+          <div style={{
+            background: 'rgba(55,56,253,0.15)', border: '1px solid rgba(55,56,253,0.3)',
+            borderRadius: 10, padding: '12px 14px',
+          }}>
+            <div style={{ fontSize: 18, marginBottom: 4 }}>🌅</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'white' }}>Fase 1 — Despertar</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>1/3 missões</div>
+            <div style={{ marginTop: 8, height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ width: '33%', height: '100%', background: COLORS.blue, borderRadius: 4 }} />
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div className="sidebar-user">
+        <div className="user-card">
+          <div className="avatar">{user.initials}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="user-name">{user.name}</div>
+            <div className="user-role">{user.company}</div>
+          </div>
+        </div>
+        <div className="xp-mini">
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>Nível {user.level}</span>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>{user.xp} XP</span>
+          </div>
+          <div className="xp-mini-bar">
+            <div className="xp-mini-fill" style={{ width: `${xpPct}%` }} />
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+};
+
+const Topbar = ({ title, subtitle }) => (
+  <header className="topbar">
+    <div>
+      <div className="topbar-title">{title}</div>
+      {subtitle && <div className="topbar-sub">{subtitle}</div>}
+    </div>
+    <div className="topbar-right">
+      <div className="wa-badge">
+        <Icons.WA />
+        <span>Agente ativo</span>
+        <div className="wa-dot" />
+      </div>
+      <div className="streak-badge">
+        🔥 <span>{user.streak} dias</span>
+      </div>
+    </div>
+  </header>
+);
+
+const MissionCard = ({ m, idx, onClick }) => {
+  const cls = m.status === 'completed' ? 'done' : m.status === 'active' ? 'active clickable' : 'locked';
+  const bgColor = m.status === 'completed' ? COLORS.mint : m.status === 'active' ? COLORS.blue : '#D1D5DB';
+
+  return (
+    <div className={`mission-card ${cls}`} onClick={() => m.status !== 'locked' && onClick && onClick(m)}>
+      <div className="mission-icon" style={{ background: bgColor }}>
+        {m.status === 'completed' ? <Icons.Check /> : m.status === 'active' ? idx + 1 : <Icons.Lock />}
+      </div>
+      <div style={{ flex: 1 }}>
+        <div className="mission-title">{m.name}</div>
+        <div className="mission-desc">{m.desc}</div>
+        <div className="mission-meta">
+          <span className="mission-tag">⏱ {m.time}</span>
+          <span className="mission-tag mission-xp">+{m.xp} XP</span>
+          {m.status === 'completed' && <span className="badge badge-mint">Concluída ✓</span>}
+          {m.status === 'active' && <span className="badge badge-blue">Em andamento</span>}
+        </div>
+      </div>
+      {m.status === 'active' && (
+        <div style={{ color: COLORS.blue, flexShrink: 0 }}><Icons.Arrow /></div>
+      )}
+    </div>
+  );
+};
+
+// ── HOME SCREEN ──────────────────────────────────────────────────
+
+const HomeScreen = ({ setScreen, setPhase, setMission }) => {
+  const activeMission = phases[0].missions.find(m => m.status === 'active');
+  const xpPct = Math.round((user.xp / user.xpMax) * 100);
+
+  return (
+    <div className="fade-up">
+      <Topbar title={`Oi, ${user.name.split(' ')[0]}! 👋`} subtitle="Veja como está sua jornada hoje" />
+
+      <div className="page">
+        {/* TOP ROW */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20, marginBottom: 24 }}>
+
+          {/* Mission Banner */}
+          <div className="hero-banner" style={{ cursor: 'pointer' }}
+            onClick={() => { setMission(activeMission); setScreen('mission'); }}>
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <div className="pulse" style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,255,255,0.6)' }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.7)', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+                  Missão atual · Fase 1
+                </span>
+              </div>
+              <h2 style={{ fontSize: 22, fontWeight: 900, color: 'white', marginBottom: 8 }}>
+                ✍️ {activeMission.name}
+              </h2>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', lineHeight: 1.6, maxWidth: 480, marginBottom: 20 }}>
+                {activeMission.desc}
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  background: 'white', color: COLORS.blue,
+                  padding: '10px 20px', borderRadius: 10,
+                  fontWeight: 800, fontSize: 13,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  Começar agora <Icons.Arrow color={COLORS.blue} />
+                </div>
+                <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 600 }}>⏱ {activeMission.time} · +{activeMission.xp} XP</span>
+              </div>
+            </div>
+          </div>
+
+          {/* XP + Stats */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="card p-24">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.muted, marginBottom: 2 }}>Nível {user.level} — AI Iniciante</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: COLORS.dark }}>{user.xp} <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.muted }}>/ {user.xpMax} XP</span></div>
+                </div>
+                <div style={{
+                  width: 48, height: 48, borderRadius: 12,
+                  background: `linear-gradient(135deg, ${COLORS.blue}, ${COLORS.mint})`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 20,
+                }}>⚡</div>
+              </div>
+              <div className="prog-bar">
+                <div className="prog-fill" style={{ width: `${xpPct}%` }} />
+              </div>
+              <div style={{ fontSize: 11, color: COLORS.muted, marginTop: 6, fontWeight: 500 }}>
+                {user.xpMax - user.xp} XP para o próximo nível
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="card p-20" style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 24, fontWeight: 900, color: COLORS.dark }}>1</div>
+                <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600 }}>missões</div>
+              </div>
+              <div className="card p-20" style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 24, fontWeight: 900, color: COLORS.dark }}>#3</div>
+                <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600 }}>ranking</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* PHASES ROW */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div className="section-label" style={{ margin: 0 }}>Jornada — 15 semanas</div>
+            <button onClick={() => setScreen('journey')}
+              style={{ fontSize: 12, fontWeight: 700, color: COLORS.blue, display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer' }}>
+              Ver completa <Icons.Arrow color={COLORS.blue} />
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+            {phases.map(ph => (
+              <div key={ph.id}
+                onClick={() => ph.status !== 'locked' && (setPhase(ph), setScreen('phase'))}
+                style={{
+                  background: 'white',
+                  borderRadius: 14,
+                  padding: '16px',
+                  border: `2px solid ${ph.status === 'active' ? COLORS.blue : ph.status === 'completed' ? COLORS.mint : '#E8E8EE'}`,
+                  cursor: ph.status !== 'locked' ? 'pointer' : 'default',
+                  opacity: ph.status === 'locked' ? 0.5 : 1,
+                  transition: 'all 0.15s',
+                  boxShadow: ph.status === 'active' ? '0 4px 16px rgba(55,56,253,0.12)' : 'none',
+                }}>
+                <div style={{ fontSize: 22, marginBottom: 8 }}>{ph.status === 'locked' ? '🔒' : ph.emoji}</div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: COLORS.muted, marginBottom: 2 }}>Fase {ph.id}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.dark, marginBottom: 4 }}>{ph.name}</div>
+                <div style={{ fontSize: 11, color: COLORS.muted }}>{ph.weeks} sem</div>
+                {ph.status === 'active' && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ height: 3, background: '#E8E8EE', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ width: '33%', height: '100%', background: COLORS.blue, borderRadius: 4 }} />
+                    </div>
+                    <div style={{ fontSize: 10, color: COLORS.blue, fontWeight: 700, marginTop: 4 }}>Em andamento</div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* BOTTOM ROW */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+
+          {/* Próximas missões */}
+          <div className="card p-24">
+            <div className="section-label">Missões da Fase 1</div>
+            {phases[0].missions.map((m, i) => (
+              <MissionCard key={m.id} m={m} idx={i} onClick={(miss) => { setMission(miss); setScreen('mission'); }} />
+            ))}
+          </div>
+
+          {/* WhatsApp + Ranking snippet */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="card-dark" style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: '#1A3D1A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icons.WA />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'white', marginBottom: 3 }}>Agente no WhatsApp</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Próximo desafio amanhã às 9h</div>
+                <div style={{ fontSize: 11, color: COLORS.mint, marginTop: 4, fontWeight: 600 }}>● Conectado</div>
+              </div>
+            </div>
+
+            <div className="card p-24">
+              <div className="section-label">Ranking · Top 3</div>
+              {ranking.slice(0, 3).map(p => (
+                <div key={p.pos} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
+                  borderBottom: p.pos < 3 ? '1px solid #F3F3F3' : 'none',
+                  background: p.isUser ? 'rgba(55,56,253,0.04)' : 'transparent',
+                  borderRadius: 8, paddingLeft: p.isUser ? 10 : 0, paddingRight: p.isUser ? 10 : 0,
+                }}>
+                  <span style={{ fontSize: 16 }}>{['🥇', '🥈', '🥉'][p.pos - 1]}</span>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                    background: p.isUser ? COLORS.blue : COLORS.dark,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, fontWeight: 800, color: 'white',
+                  }}>{p.initials}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.dark }}>{p.name}{p.isUser ? ' (você)' : ''}</div>
+                    <div style={{ fontSize: 11, color: COLORS.muted }}>{p.company}</div>
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: COLORS.blue }}>{p.xp} XP</div>
+                </div>
+              ))}
+              <button onClick={() => setScreen('ranking')} style={{
+                marginTop: 12, width: '100%', textAlign: 'center',
+                fontSize: 12, fontWeight: 700, color: COLORS.blue, background: 'none', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+              }}>Ver ranking completo <Icons.Arrow color={COLORS.blue} /></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── JOURNEY SCREEN ───────────────────────────────────────────────
+
+const JourneyScreen = ({ setScreen, setPhase }) => {
+  const xpPct = Math.round((user.xp / user.xpMax) * 100);
+
+  return (
+    <div className="fade-up">
+      <Topbar title="Jornada Native" subtitle="15 semanas para se tornar AI Native" />
+      <div className="page">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 24 }}>
+
+          {/* Phases list */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div className="section-label" style={{ margin: 0 }}>5 Fases · 17 missões</div>
+              <span style={{ fontSize: 12, color: COLORS.muted, fontWeight: 600 }}>1 de 5 fases concluídas</span>
+            </div>
+
+            <div style={{ marginBottom: 10 }}>
+              <div className="prog-bar" style={{ height: 8, marginBottom: 8 }}>
+                <div className="prog-fill" style={{ width: '8%' }} />
+              </div>
+              <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600 }}>8% da jornada completa</div>
+            </div>
+
+            <div style={{ marginTop: 24 }}>
+              {phases.map((ph, idx) => (
+                <div key={ph.id}>
+                  {idx > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0' }}>
+                      <div style={{ width: 2, height: 24, background: ph.status !== 'locked' ? COLORS.blue : '#E8E8EE', borderRadius: 2 }} />
+                    </div>
+                  )}
+                  <div
+                    onClick={() => ph.status !== 'locked' && (setPhase(ph), setScreen('phase'))}
+                    style={{
+                      background: 'white',
+                      borderRadius: 16,
+                      padding: '20px 24px',
+                      border: `2px solid ${ph.status === 'active' ? COLORS.blue : ph.status === 'completed' ? COLORS.mint : '#E8E8EE'}`,
+                      cursor: ph.status !== 'locked' ? 'pointer' : 'default',
+                      opacity: ph.status === 'locked' ? 0.55 : 1,
+                      boxShadow: ph.status === 'active' ? '0 4px 20px rgba(55,56,253,0.1)' : 'none',
+                      transition: 'all 0.15s',
+                    }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18 }}>
+                      <div style={{
+                        width: 56, height: 56, borderRadius: 14, flexShrink: 0,
+                        background: ph.status === 'locked' ? '#F3F3F3' : `${ph.color}18`,
+                        border: ph.status !== 'locked' ? `2px solid ${ph.color}` : '2px solid #E8E8EE',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
+                      }}>
+                        {ph.status === 'locked' ? '🔒' : ph.emoji}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted }}>Fase {ph.id}</span>
+                          {ph.status === 'active' && <span className="badge badge-blue">Em andamento</span>}
+                          {ph.status === 'completed' && <span className="badge badge-mint">Concluída ✓</span>}
+                          {ph.status === 'locked' && <span className="badge badge-gray">Bloqueada</span>}
+                        </div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: ph.status === 'locked' ? COLORS.muted : COLORS.dark, marginBottom: 4 }}>
+                          {ph.emoji} {ph.name}
+                        </div>
+                        <div style={{ fontSize: 12, color: ph.status === 'locked' ? '#C0C0D0' : COLORS.muted, lineHeight: 1.5, marginBottom: 10 }}>
+                          {ph.desc}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                          <span style={{ fontSize: 12, color: ph.status === 'locked' ? '#C0C0D0' : COLORS.muted, fontWeight: 600 }}>
+                            {ph.weeks} semanas · {ph.missions.length} missões
+                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: ph.status === 'locked' ? '#C0C0D0' : COLORS.blue }}>
+                            {ph.missions.reduce((a, m) => a + m.xp, 0)} XP
+                          </span>
+                        </div>
+                        {ph.status === 'active' && (
+                          <div style={{ marginTop: 12 }}>
+                            <div className="prog-bar">
+                              <div className="prog-fill" style={{ width: '33%' }} />
+                            </div>
+                            <div style={{ fontSize: 11, color: COLORS.blue, fontWeight: 700, marginTop: 4 }}>33% concluída</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Sidebar info */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="card p-24">
+              <div className="section-label">Seu progresso</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {[
+                  { v: 1, l: 'missões feitas' },
+                  { v: '16', l: 'restantes' },
+                  { v: user.xp, l: 'XP ganho' },
+                  { v: '14 sem', l: 'restantes' },
+                ].map((s, i) => (
+                  <div key={i} style={{ background: '#F8F8FC', borderRadius: 10, padding: '14px 12px' }}>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: COLORS.dark }}>{s.v}</div>
+                    <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600, marginTop: 2 }}>{s.l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ background: COLORS.dark, borderRadius: 16, padding: '20px 24px' }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>🎓</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: 'white', marginBottom: 4 }}>Certificado AI Native</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: 14 }}>
+                Conclua as 5 fases para receber seu certificado Leapy.
+              </div>
+              <div style={{ height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 4, overflow: 'hidden', marginBottom: 6 }}>
+                <div style={{ width: '8%', height: '100%', background: COLORS.blue, borderRadius: 4 }} />
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>8% completo</div>
+            </div>
+
+            <div className="card p-24">
+              <div className="section-label">Conquistas</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {badges.map((b, i) => (
+                  <div key={i} style={{
+                    background: b.earned ? 'rgba(55,56,253,0.06)' : '#F8F8FC',
+                    border: `1.5px solid ${b.earned ? COLORS.blue : '#E8E8EE'}`,
+                    borderRadius: 10, padding: '12px 8px', textAlign: 'center',
+                    opacity: b.earned ? 1 : 0.5,
+                  }}>
+                    <div style={{ fontSize: 20, marginBottom: 4 }}>{b.icon}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: b.earned ? COLORS.dark : COLORS.muted, lineHeight: 1.3 }}>{b.name}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── PHASE SCREEN ─────────────────────────────────────────────────
+
+const PhaseScreen = ({ phase, setScreen, setMission }) => (
+  <div className="fade-up">
+    <Topbar
+      title={`${phase.emoji} Fase ${phase.id} — ${phase.name}`}
+      subtitle={phase.desc}
+    />
+    <div className="page">
+      <button onClick={() => setScreen('journey')} style={{
+        display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700,
+        color: COLORS.blue, background: 'none', border: 'none', cursor: 'pointer', marginBottom: 20,
+      }}>
+        <Icons.Back /> <span style={{ color: COLORS.blue }}>Voltar à jornada</span>
+      </button>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24 }}>
+        <div>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+            {[
+              { v: phase.weeks, l: 'semanas' },
+              { v: phase.missions.length, l: 'missões' },
+              { v: `${phase.missions.reduce((a, m) => a + m.xp, 0)} XP`, l: 'total' },
+            ].map((s, i) => (
+              <div key={i} style={{
+                background: `${phase.color}10`, border: `1.5px solid ${phase.color}30`,
+                borderRadius: 12, padding: '14px 20px',
+              }}>
+                <div style={{ fontSize: 20, fontWeight: 900, color: phase.color }}>{s.v}</div>
+                <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600, marginTop: 2 }}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="section-label">Missões</div>
+          {phase.missions.map((m, i) => (
+            <MissionCard key={m.id} m={m} idx={i} onClick={(miss) => { setMission(miss); setScreen('mission'); }} />
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="card p-24">
+            <div style={{ fontSize: 36, marginBottom: 10 }}>{phase.emoji}</div>
+            <div className="section-label">Sobre esta fase</div>
+            <p style={{ fontSize: 13, color: COLORS.muted, lineHeight: 1.7 }}>{phase.desc}</p>
+            <div style={{ marginTop: 16, padding: '14px', background: '#F8F8FC', borderRadius: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.blue, marginBottom: 4 }}>💡 Critério de progressão</div>
+              <div style={{ fontSize: 12, color: COLORS.muted, lineHeight: 1.6 }}>
+                Complete todas as missões e o check-in do agente para avançar à próxima fase.
+              </div>
+            </div>
+          </div>
+
+          <div style={{ background: COLORS.blue, borderRadius: 16, padding: '20px 24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Icons.WA />
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'white' }}>Agente no WhatsApp</span>
+            </div>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
+              O agente vai te enviar desafios e dar feedback nas suas missões pelo WhatsApp.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+// ── MISSION SCREEN ───────────────────────────────────────────────
+
+const MissionScreen = ({ mission, setScreen }) => {
+  const [step, setStep] = useState(0);
+  const [text, setText] = useState('');
+  const ready = text.length > 40;
+
+  if (step === 2) return (
+    <div style={{
+      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      minHeight: '80vh',
+    }}>
+      <div className="pop-in" style={{ textAlign: 'center', maxWidth: 480, padding: 32 }}>
+        <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
+        <h2 style={{ fontSize: 28, fontWeight: 900, color: COLORS.dark, marginBottom: 8 }}>Missão concluída!</h2>
+        <p style={{ fontSize: 15, color: COLORS.muted, marginBottom: 24 }}>
+          Você ganhou <strong style={{ color: COLORS.blue }}>+{mission.xp} XP</strong>
+        </p>
+        <div style={{ background: 'white', border: `2px solid ${COLORS.mint}`, borderRadius: 16, padding: 20, textAlign: 'left', marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.dark, marginBottom: 6 }}>Resposta salva no portfólio</div>
+          <div style={{ fontSize: 13, color: COLORS.muted, lineHeight: 1.6 }}>{text.length > 150 ? text.slice(0, 150) + '…' : text}</div>
+        </div>
+        <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: '14px 18px', textAlign: 'left', marginBottom: 24, display: 'flex', gap: 12 }}>
+          <Icons.WA />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#15803D' }}>Feedback pelo WhatsApp</div>
+            <div style={{ fontSize: 12, color: '#16A34A', marginTop: 2 }}>O agente vai revisar e te responder em breve.</div>
+          </div>
+        </div>
+        <button onClick={() => setScreen('home')} className="btn btn-primary btn-lg btn-full">
+          Voltar para o início
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fade-up" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      {/* Mission Header */}
+      <div style={{ background: COLORS.dark, padding: '28px 32px' }}>
+        <button onClick={() => setScreen('home')} style={{
+          display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600,
+          color: 'rgba(255,255,255,0.5)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 20,
+        }}>
+          <Icons.Back /> Voltar
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <div className="pulse" style={{ width: 7, height: 7, borderRadius: '50%', background: COLORS.blue }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+            Fase 1 · Despertar
+          </span>
+        </div>
+        <h1 style={{ fontSize: 24, fontWeight: 900, color: 'white', marginBottom: 8 }}>{mission.name}</h1>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <span style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 600, padding: '4px 12px', borderRadius: 20 }}>
+            ⏱ {mission.time}
+          </span>
+          <span style={{ background: 'rgba(55,56,253,0.3)', color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
+            +{mission.xp} XP
+          </span>
+        </div>
+      </div>
+
+      {/* Mission Body */}
+      <div style={{ padding: '32px', flex: 1, display: 'flex', gap: 24, maxWidth: 1100 }}>
+        {step === 0 && (
+          <>
+            <div style={{ flex: 1 }}>
+              <div className="card p-28" style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>
+                  O que você vai fazer
+                </div>
+                <p style={{ fontSize: 15, color: COLORS.dark, lineHeight: 1.7, marginBottom: 20 }}>{mission.desc}</p>
+                {mission.tip && (
+                  <div style={{ background: 'rgba(55,56,253,0.05)', border: '1.5px solid rgba(55,56,253,0.15)', borderRadius: 12, padding: '16px 20px' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: COLORS.blue, marginBottom: 6 }}>💡 Dica do agente</div>
+                    <p style={{ fontSize: 13, color: COLORS.blue, lineHeight: 1.6 }}>{mission.tip}</p>
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setStep(1)} className="btn btn-primary btn-lg">
+                Bora começar 🚀
+              </button>
+            </div>
+            <div style={{ width: 280, flexShrink: 0 }}>
+              <div className="card p-24">
+                <div className="section-label">Sobre esta missão</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {[
+                    { label: 'Tempo', value: mission.time },
+                    { label: 'XP', value: `+${mission.xp} pontos` },
+                    { label: 'Formato', value: 'Texto livre' },
+                    { label: 'Feedback', value: 'WhatsApp' },
+                  ].map((s, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < 3 ? '1px solid #F3F3F3' : 'none' }}>
+                      <span style={{ fontSize: 12, color: COLORS.muted, fontWeight: 600 }}>{s.label}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.dark }}>{s.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {step === 1 && (
+          <>
+            <div style={{ flex: 1 }}>
+              <div className="card p-28">
+                <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
+                  Sua resposta
+                </div>
+                <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 20, lineHeight: 1.6 }}>{mission.desc}</p>
+                <textarea
+                  value={text}
+                  onChange={e => setText(e.target.value)}
+                  placeholder="Começa digitando aqui..."
+                  style={{
+                    width: '100%', minHeight: 220, padding: '16px',
+                    border: `1.5px solid ${text.length > 0 ? COLORS.blue : '#E8E8EE'}`,
+                    borderRadius: 12, fontSize: 14, color: COLORS.dark,
+                    lineHeight: 1.7, resize: 'vertical',
+                    outline: 'none', transition: 'border-color 0.15s',
+                    background: '#FAFAFE',
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                  <span style={{ fontSize: 12, color: COLORS.muted, fontWeight: 500 }}>{text.length} caracteres</span>
+                  {ready && <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.mint }}>Pronto para entregar ✓</span>}
+                </div>
+              </div>
+              <div style={{ marginTop: 16, display: 'flex', gap: 12 }}>
+                <button onClick={() => setStep(0)} className="btn btn-ghost">
+                  Voltar
+                </button>
+                <button
+                  onClick={() => ready && setStep(2)}
+                  className={`btn ${ready ? 'btn-primary' : 'btn-disabled'} btn-lg`}
+                  style={{ flex: 1 }}>
+                  Entregar missão
+                </button>
+              </div>
+              {!ready && text.length > 0 && (
+                <p style={{ fontSize: 12, color: COLORS.muted, textAlign: 'center', marginTop: 8 }}>
+                  Desenvolve um pouco mais antes de entregar
+                </p>
+              )}
+            </div>
+            <div style={{ width: 260, flexShrink: 0 }}>
+              <div style={{ background: COLORS.blue, borderRadius: 16, padding: '20px 24px', marginBottom: 14 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                  <Icons.WA />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'white' }}>Dica do agente</span>
+                </div>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', lineHeight: 1.6 }}>
+                  {mission.tip || 'Seja específico e pensa em exemplos do seu dia a dia. Quanto mais concreto, melhor!'}
+                </p>
+              </div>
+              <div className="card p-20">
+                <div style={{ fontSize: 22, fontWeight: 900, color: COLORS.dark }}>{text.split(' ').filter(Boolean).length}</div>
+                <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600, marginTop: 2 }}>palavras digitadas</div>
+                <div style={{ marginTop: 12, height: 3, background: '#E8E8EE', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%', borderRadius: 4,
+                    background: ready ? COLORS.mint : COLORS.blue,
+                    width: `${Math.min((text.length / 200) * 100, 100)}%`,
+                    transition: 'width 0.3s ease',
+                  }} />
+                </div>
+                <div style={{ fontSize: 11, color: COLORS.muted, marginTop: 4, fontWeight: 500 }}>
+                  {ready ? 'Ótimo! Pode entregar.' : `${Math.max(0, 40 - text.length)} caracteres para liberar`}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── RANKING SCREEN ───────────────────────────────────────────────
+
+const RankingScreen = () => (
+  <div className="fade-up">
+    <Topbar title="Ranking" subtitle="Veja onde você está entre os talentos Native" />
+    <div className="page">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 24 }}>
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
+            {ranking.slice(0, 3).map((p, i) => (
+              <div key={p.pos} style={{
+                background: p.isUser ? COLORS.blue : 'white',
+                border: `2px solid ${p.isUser ? COLORS.blue : '#E8E8EE'}`,
+                borderRadius: 16, padding: '20px', textAlign: 'center',
+                boxShadow: p.isUser ? '0 8px 24px rgba(55,56,253,0.2)' : 'none',
+              }}>
+                <div style={{ fontSize: 28, marginBottom: 12 }}>{['🥇', '🥈', '🥉'][i]}</div>
+                <div style={{
+                  width: 48, height: 48, borderRadius: 14, margin: '0 auto 10px',
+                  background: p.isUser ? 'rgba(255,255,255,0.2)' : COLORS.dark,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 14, fontWeight: 800, color: 'white',
+                }}>{p.initials}</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: p.isUser ? 'white' : COLORS.dark }}>{p.name}</div>
+                <div style={{ fontSize: 11, color: p.isUser ? 'rgba(255,255,255,0.6)' : COLORS.muted, marginTop: 2 }}>{p.company}</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: p.isUser ? 'white' : COLORS.blue, marginTop: 8 }}>{p.xp} XP</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '16px 24px', borderBottom: '1px solid #F3F3F3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="section-label" style={{ margin: 0 }}>Ranking completo</div>
+              <span style={{ fontSize: 12, color: COLORS.muted, fontWeight: 600 }}>Semana 1</span>
+            </div>
+            {ranking.map(p => (
+              <div key={p.pos} className="rank-row" style={{
+                background: p.isUser ? 'rgba(55,56,253,0.04)' : 'transparent',
+              }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: COLORS.muted, width: 28 }}>#{p.pos}</span>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                  background: p.isUser ? COLORS.blue : COLORS.dark,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: 800, color: 'white',
+                }}>{p.initials}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.dark }}>
+                    {p.name}{p.isUser ? ' (você)' : ''}
+                  </div>
+                  <div style={{ fontSize: 11, color: COLORS.muted }}>{p.company} · Fase {p.phase}</div>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.blue }}>{p.xp} XP</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="card p-24">
+            <div className="section-label">Sua posição</div>
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <div style={{ fontSize: 48, fontWeight: 900, color: COLORS.blue }}>#3</div>
+              <div style={{ fontSize: 13, color: COLORS.muted, fontWeight: 600, marginTop: 4 }}>de 7 talentos</div>
+            </div>
+            <div style={{ background: '#F8F8FC', borderRadius: 12, padding: '14px 16px' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.muted, marginBottom: 4 }}>Para subir para #2</div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: COLORS.dark }}>500 XP</div>
+              <div style={{ fontSize: 11, color: COLORS.muted, marginTop: 2 }}>faltam 500 XP para alcançar Clara Reis</div>
+            </div>
+          </div>
+          <div className="card p-24">
+            <div className="section-label">Estatísticas da comunidade</div>
+            {[
+              { l: 'Talentos ativos', v: '1.600+' },
+              { l: 'Empresas parceiras', v: '90+' },
+              { l: 'Missões entregues', v: '3.2k' },
+            ].map((s, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: i < 2 ? '1px solid #F3F3F3' : 'none' }}>
+                <span style={{ fontSize: 12, color: COLORS.muted, fontWeight: 600 }}>{s.l}</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.dark }}>{s.v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+// ── PROFILE SCREEN ───────────────────────────────────────────────
+
+const ProfileScreen = () => {
+  const xpPct = Math.round((user.xp / user.xpMax) * 100);
+  return (
+    <div className="fade-up">
+      <Topbar title="Perfil" subtitle="Sua jornada e conquistas" />
+      <div className="page">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+
+          {/* Left */}
+          <div>
+            {/* User hero */}
+            <div style={{
+              background: `linear-gradient(135deg, ${COLORS.dark}, ${COLORS.dark2})`,
+              borderRadius: 20, padding: '28px 32px', marginBottom: 16,
+              display: 'flex', alignItems: 'center', gap: 20,
+            }}>
+              <div style={{
+                width: 72, height: 72, borderRadius: 18, background: COLORS.blue,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 24, fontWeight: 900, color: 'white', flexShrink: 0,
+              }}>{user.initials}</div>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: 'white', marginBottom: 2 }}>{user.name}</div>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 12 }}>{user.role} · {user.company}</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <span style={{ background: 'rgba(55,56,253,0.25)', color: COLORS.blue, fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20 }}>
+                    Nível {user.level}
+                  </span>
+                  <span style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20 }}>
+                    AI Iniciante
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* XP */}
+            <div className="card p-24" style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.muted }}>Progresso de XP</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.dark }}>{user.xp} / {user.xpMax}</div>
+              </div>
+              <div className="prog-bar" style={{ height: 10 }}>
+                <div className="prog-fill" style={{ width: `${xpPct}%` }} />
+              </div>
+              <div style={{ fontSize: 11, color: COLORS.muted, marginTop: 6, fontWeight: 500 }}>
+                {user.xpMax - user.xp} XP para Nível 3
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="card p-24">
+              <div className="section-label">Seus números</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {[
+                  { v: 1, l: 'missões concluídas', c: COLORS.blue },
+                  { v: `${user.streak}`, l: 'dias seguidos 🔥', c: COLORS.coral },
+                  { v: user.xp, l: 'XP acumulado', c: COLORS.blue },
+                  { v: '#3', l: 'no ranking', c: COLORS.mint },
+                ].map((s, i) => (
+                  <div key={i} style={{ background: '#F8F8FC', borderRadius: 12, padding: '16px 18px' }}>
+                    <div style={{ fontSize: 26, fontWeight: 900, color: s.c }}>{s.v}</div>
+                    <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600, marginTop: 4 }}>{s.l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Right */}
+          <div>
+            {/* Badges */}
+            <div className="card p-24" style={{ marginBottom: 16 }}>
+              <div className="section-label">Conquistas</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                {badges.map((b, i) => (
+                  <div key={i} style={{
+                    border: `1.5px solid ${b.earned ? COLORS.blue : '#E8E8EE'}`,
+                    background: b.earned ? 'rgba(55,56,253,0.05)' : '#F8F8FC',
+                    borderRadius: 12, padding: '14px 10px', textAlign: 'center',
+                    opacity: b.earned ? 1 : 0.5,
+                  }}>
+                    <div style={{ fontSize: 24, marginBottom: 6 }}>{b.icon}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: b.earned ? COLORS.dark : COLORS.muted, marginBottom: 3 }}>{b.name}</div>
+                    <div style={{ fontSize: 10, color: COLORS.muted }}>{b.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Certificate */}
+            <div style={{
+              background: `linear-gradient(135deg, ${COLORS.dark}, #2D0A5A)`,
+              borderRadius: 20, padding: '28px 32px',
+            }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>🎓</div>
+              <div style={{ fontSize: 18, fontWeight: 900, color: 'white', marginBottom: 6 }}>Certificado AI Native</div>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, marginBottom: 20 }}>
+                Conclua todas as 5 fases da Jornada Native para receber seu certificado oficial Leapy — AI Native.
+              </p>
+              <div style={{ height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+                <div style={{ width: '8%', height: '100%', background: `linear-gradient(90deg, ${COLORS.blue}, ${COLORS.mint})`, borderRadius: 4 }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>8% completo</span>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>Fase 1 de 5</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── LOGIN SCREEN ─────────────────────────────────────────────────
+
+const LoginScreen = ({ onLogin }) => {
+  const [phone, setPhone] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const normalizePhone = (p) => p.replace(/\D/g, '');
+
+  const handleLogin = async () => {
+    const normalized = normalizePhone(phone);
+    if (normalized.length < 10) { setError('Digite um número válido com DDD.'); return; }
+    setLoading(true); setError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/user/${normalized}`);
+      if (!res.ok) throw new Error('Usuário não encontrado');
+      const data = await res.json();
+      if (!data.nome) throw new Error('Conclua o onboarding no WhatsApp primeiro.');
+      localStorage.setItem('native_phone', normalized);
+      onLogin(normalized, data);
+    } catch (e) {
+      setError(e.message || 'Erro ao conectar. Tente novamente.');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="login-wrap">
+      <div className="login-box">
+        <div style={{ fontSize: 40, marginBottom: 12 }}>🤖</div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: COLORS.dark, marginBottom: 6 }}>Native by Leapy</div>
+        <div style={{ fontSize: 13, color: COLORS.muted, fontWeight: 500, lineHeight: 1.6 }}>
+          Digite o número que você usa no WhatsApp com a Léa para acessar seu progresso.
+        </div>
+        <input
+          className="login-input"
+          type="tel"
+          placeholder="(11) 99999-9999"
+          value={phone}
+          onChange={e => setPhone(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleLogin()}
+        />
+        {error && <div style={{ fontSize: 12, color: COLORS.coral, marginBottom: 10, fontWeight: 600 }}>{error}</div>}
+        <button className="login-btn" onClick={handleLogin} disabled={loading}>
+          {loading ? 'Carregando...' : 'Acessar minha jornada →'}
+        </button>
+        <div style={{ fontSize: 11, color: COLORS.muted, marginTop: 16 }}>
+          Ainda não começou? Mande <strong>oi</strong> para a Léa no WhatsApp primeiro.
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── APP ──────────────────────────────────────────────────────────
+
+const App = () => {
+  const [screen, setScreen] = useState('home');
+  const [phase, setPhase] = useState(null);
+  const [mission, setMission] = useState(null);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [tick, setTick] = useState(0);
+
+  const applyUserData = (data) => {
+    const nome = data.nome || 'Usuário';
+    const initials = nome.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+    user.name = nome;
+    user.initials = initials;
+    user.xp = data.xp_total || 0;
+    user.xpMax = Math.max(500, Math.ceil((data.xp_total || 0) / 500) * 500);
+    user.level = Math.floor((data.xp_total || 0) / 500) + 1;
+    user.streak = data.streak || 0;
+    user.fase = data.fase_atual || 1;
+    user.missoes_completas = data.missoes_completas || 0;
+    user.total_missoes = data.total_missoes || 15;
+    user.badges_earned = data.badges || [];
+    setTick(t => t + 1);
+  };
+
+  const fetchAndRefresh = async (phone) => {
+    try {
+      const [uRes, rRes] = await Promise.all([
+        fetch(`${API_BASE}/api/user/${phone}`),
+        fetch(`${API_BASE}/api/ranking`),
+      ]);
+      if (uRes.ok) { const d = await uRes.json(); applyUserData(d); }
+      if (rRes.ok) {
+        const rData = await rRes.json();
+        const savedPhone = localStorage.getItem('native_phone');
+        ranking.length = 0;
+        rData.forEach((u, i) => ranking.push({
+          pos: i + 1,
+          name: u.nome,
+          initials: u.nome.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase(),
+          xp: u.xp_total,
+          company: u.phone === savedPhone ? 'Você' : '—',
+          phase: u.fase,
+          isUser: u.phone === savedPhone,
+        }));
+        setTick(t => t + 1);
+      }
+    } catch(e) {}
+  };
+
+  useEffect(() => {
+    const saved = localStorage.getItem('native_phone');
+    if (saved) {
+      fetch(`${API_BASE}/api/user/${saved}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d && d.nome) { applyUserData(d); setLoggedIn(true); fetchAndRefresh(saved); } })
+        .catch(() => {});
+    }
+  }, []);
+
+  const handleLogin = (phone, data) => {
+    applyUserData(data);
+    setLoggedIn(true);
+    fetchAndRefresh(phone);
+  };
+
+  const handleSetScreen = (s) => {
+    setScreen(s);
+    window.scrollTo(0, 0);
+  };
+
+  if (!loggedIn) return <LoginScreen onLogin={handleLogin} />;
+
+  const content = {
+    home: <HomeScreen setScreen={handleSetScreen} setPhase={setPhase} setMission={setMission} />,
+    journey: <JourneyScreen setScreen={handleSetScreen} setPhase={setPhase} />,
+    phase: phase ? <PhaseScreen phase={phase} setScreen={handleSetScreen} setMission={setMission} /> : null,
+    mission: mission ? <MissionScreen mission={mission} setScreen={handleSetScreen} /> : null,
+    ranking: <RankingScreen />,
+    profile: <ProfileScreen />,
+  };
+
+  const navScreen = ['home', 'journey', 'ranking', 'profile'].includes(screen) ? screen :
+    screen === 'phase' ? 'journey' : 'home';
+
+  return (
+    <div className="app" key={tick}>
+      <Sidebar screen={navScreen} setScreen={handleSetScreen} />
+      <main className="main">
+        {content[screen]}
+      </main>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

@@ -647,6 +647,14 @@ def get_ranking():
     return jsonify(ranking)
 
 
+@app.get("/")
+def index():
+    """Serve a interface web Native."""
+    import os
+    html_path = os.path.join(os.path.dirname(__file__), "index.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        return f.read(), 200, {"Content-Type": "text/html"}
+
 @app.get("/health")
 def health():
     return jsonify({"status": "ok", "users": len(user_states)})
