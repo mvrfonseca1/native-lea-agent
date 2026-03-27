@@ -757,6 +757,7 @@ def get_user(phone: str):
     return jsonify({
         "nome": state.get("nome"),
         "fase_atual": state["fase_atual"],
+        "missao_index": state.get("missao_index", 0),
         "nome_fase": fase.get("nome"),
         "emoji_fase": fase.get("emoji"),
         "missao_atual": mission["titulo"] if mission else None,
@@ -765,6 +766,7 @@ def get_user(phone: str):
         "missoes_completas": len(state.get("missoes_completas", [])),
         "total_missoes": sum(len(f["missoes"]) for f in PHASES.values()),
         "badges": state.get("badges", []),
+        "onboarding_completo": state.get("onboarding_step", 0) >= 2,
     })
 
 
